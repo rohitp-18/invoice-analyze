@@ -1,9 +1,21 @@
 from fastapi import FastAPI, Depends, HTTPException
 from app.routes.user_routes import router as user_router
 from app.routes.invoce_routes import router as invoice_router
-
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
+
+origins = [
+    "http://localhost:3000",      # React/Vue local dev server
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,           # Allowed domains
+    allow_credentials=True,          # Allow cookies/auth headers
+    allow_methods=["*"],             # Allow all HTTP methods (GET, POST, etc.)
+    allow_headers=["*"],             # Allow all request headers
+)
 
 
 

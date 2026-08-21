@@ -7,7 +7,7 @@ import app.utils.utils as utils
 from app.authentication import get_current_user
 
 # Create a router to group these endpoints
-router = APIRouter(prefix="/users", tags=["Authentication"])
+router = APIRouter(prefix="/api/v1/auth", tags=["Authentication"])
 
 db = get_db()
 
@@ -27,8 +27,9 @@ def register_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
+    access_token = utils.create_access_token(data={"sub": new_user.email})
     
-    return new_user
+    return {new_user, access_token}
 @router.post("/login", response_model=schemas.Token)
 def login_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
     # 1. Find the user by email
