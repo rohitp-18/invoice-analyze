@@ -34,6 +34,19 @@ const fetchUser = createAsyncThunk("auth/fetchUser", async (token: string) => {
   }
 });
 
+const logout = createAsyncThunk("auth/logout", async () => {
+  try {
+    const res = await axios.post("/auth/logout")
+    localStorage.removeItem("token")
+    return res.data
+  } catch (error: unknown) {
+    if (isAxiosError(error)) {
+      throw new Error(error.response?.data?.detail || "Failed to logout");
+    }
+    throw new Error("Failed to logout");
+  }
+})
+
 export interface AuthUser {
   id: string;
   name?: string;
@@ -47,7 +60,7 @@ export interface AuthState {
   token: string | null;
   role: string | null;
   user: AuthUser | null;
-  loading?: boolean;
+  loading: boolean;
 }
 
 const initialState: AuthState = {
@@ -55,6 +68,7 @@ const initialState: AuthState = {
   user: null,
   token: null,
   role: null,
+  loading: false
 };
 
 const authSlice = createSlice({
@@ -80,10 +94,31 @@ const authSlice = createSlice({
       state.user = action.payload.user;
       state.token = action.payload.token;
       state.role = action.payload.role;
-    });
+      state.loading = false;
+    })
+      .addCase(fetchUser.pending, (state) => {
+        state.loading = true;
+      })
+      .addCase(fetchUser.rejected, (state) => {
+        state.loading = false;
+      });
+
+    builder.addCase(logout.fulfilled, (state) => {
+      state.isAuthenticated = false;
+      state.user = null;
+      state.token = null;
+      state.role = null;
+      state.loading = false;
+    })
+      .addCase(logout.pending, (state) => {
+        state.loading = true;
+      })
+      .addCase(logout.rejected, (state) => {
+        state.loading = false;
+      });
   },
 });
 
 export const { setAuthState, clearAuthState } = authSlice.actions;
-export { fetchUser };
+export { fetchUser, logout };
 export default authSlice.reducer;

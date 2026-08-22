@@ -11,9 +11,11 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <SidebarProvider>
+    <SidebarProvider className="bg-slate-950 text-slate-100 min-h-screen">
       <AppSidebar />
-      {children}
+      <div className="flex-1 bg-slate-950 text-slate-100 min-h-screen overflow-auto">
+        {children}
+      </div>
     </SidebarProvider>
   );
 }
