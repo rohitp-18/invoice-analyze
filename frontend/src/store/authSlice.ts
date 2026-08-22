@@ -1,8 +1,6 @@
 import { createAsyncThunk, createSlice, PayloadAction } from "@reduxjs/toolkit";
-import axios from "./axios"
+import axios from "./axios";
 import { isAxiosError } from "axios";
-
-
 
 const fetchUser = createAsyncThunk("auth/fetchUser", async (token: string) => {
   try {
@@ -18,8 +16,14 @@ const fetchUser = createAsyncThunk("auth/fetchUser", async (token: string) => {
 
     return {
       isAuthenticated: true,
-      user: data.user,
-      token: data.token,
+      user: {
+        id: data.id,
+        name: data.name,
+        email: data.email,
+        department: data.department,
+        role: data.role,
+      },
+      token: token,
       role: data.role,
     };
   } catch (error: unknown) {
@@ -28,16 +32,21 @@ const fetchUser = createAsyncThunk("auth/fetchUser", async (token: string) => {
     }
     throw new Error("Failed to fetch user");
   }
-})
+});
 
-interface AuthState {
+export interface AuthUser {
+  id: string;
+  name?: string;
+  email: string;
+  department?: string | null;
+  role: string;
+}
+
+export interface AuthState {
   isAuthenticated: boolean;
   token: string | null;
   role: string | null;
-  user: {
-    id: string;
-    email: string;
-  } | null;
+  user: AuthUser | null;
   loading?: boolean;
 }
 
@@ -63,7 +72,7 @@ const authSlice = createSlice({
       state.user = null;
       state.token = null;
       state.role = null;
-    }
+    },
   },
   extraReducers: (builder) => {
     builder.addCase(fetchUser.fulfilled, (state, action) => {
@@ -72,7 +81,7 @@ const authSlice = createSlice({
       state.token = action.payload.token;
       state.role = action.payload.role;
     });
-  }
+  },
 });
 
 export const { setAuthState, clearAuthState } = authSlice.actions;

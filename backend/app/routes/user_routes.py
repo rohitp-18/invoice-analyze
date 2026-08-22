@@ -23,13 +23,18 @@ def register_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
     hashed_pwd = utils.get_password_hash(str(user.password[:72]))
     
     # 3. Create the new user and save to PostgreSQL
-    new_user = User(email=user.email, hashed_password=hashed_pwd)
+    new_user = User(
+        name=user.name if user.name else user.email.split("@")[0],
+        email=user.email,
+        department=user.department,
+        role=user.role if user.role else "EMPLOYEE",
+        hashed_password=hashed_pwd,
+    )
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
-    access_token = utils.create_access_token(data={"sub": new_user.email})
     
-    return {new_user, access_token}
+    return new_user
 @router.post("/login", response_model=schemas.Token)
 def login_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
     # 1. Find the user by email
@@ -43,11 +48,16 @@ def login_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    # 3. Generate the JWT access token using the user's email as the subject ("sub")
-    access_token = utils.create_access_token(data={"sub": db_user.email})
+    # 3. Generate the JWT access token using the user's email and role
+    access_token = utils.create_access_token(data={"sub": db_user.email, "role": db_user.role})
     
-    # 4. Return the token to the client
-    return {"access_token": access_token, "token_type": "bearer"}
+    # 4. Return the token and user metadata to the client
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "role": db_user.role,
+        "user": db_user,
+    }
 
 @router.get("/me", response_model=schemas.UserResponse)
 def read_current_user(current_user: User = Depends(get_current_user)):

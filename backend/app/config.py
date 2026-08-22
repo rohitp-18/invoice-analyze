@@ -1,7 +1,7 @@
 import os
 from functools import lru_cache
 from typing import Literal, Optional
-from pydantic import Field
+from pydantic import Field, AliasChoices
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     # Database
     DATABASE_URL: str = Field(
         default="postgresql://postgres:Rohit18@localhost:5432/invoices",
-        alias="POSTGRES_URL",
+        validation_alias=AliasChoices("DATABASE_URL", "POSTGRES_URL"),
     )
 
     # Authentication & JWT
@@ -35,8 +35,12 @@ class Settings(BaseSettings):
     # LLM Settings (Google Gemini & Ollama)
     LLM_PROVIDER: Literal["gemini", "ollama"] = "gemini"
 
-    # Google Gemini
-    GEMINI_API_KEY: Optional[str] = None
+    # Google Gemini Keys (accepts either GOOGLE_API_KEY or GEMINI_API_KEY)
+    GEMINI_API_KEY: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("GEMINI_API_KEY", "GOOGLE_API_KEY"),
+    )
+    GOOGLE_API_KEY: Optional[str] = None
     GEMINI_MODEL: str = "gemini-2.5-flash"
     GEMINI_VISION_MODEL: str = "gemini-2.5-flash"
     GEMINI_EMBEDDING_MODEL: str = "models/text-embedding-004"
@@ -61,6 +65,15 @@ class Settings(BaseSettings):
     MAX_DOCUMENT_PAGES: int = 10
 
     @property
+    def gemini_key(self) -> Optional[str]:
+        return (
+            self.GEMINI_API_KEY
+            or self.GOOGLE_API_KEY
+            or os.getenv("GEMINI_API_KEY")
+            or os.getenv("GOOGLE_API_KEY")
+        )
+
+    @property
     def is_production(self) -> bool:
         return self.ENVIRONMENT.lower() == "production"
 
@@ -74,7 +87,11 @@ class Settings(BaseSettings):
 @lru_cache()
 def get_settings() -> Settings:
     """Returns cached application settings singleton instance."""
-    return Settings()
+    inst = Settings()
+    if inst.gemini_key:
+        os.environ["GOOGLE_API_KEY"] = inst.gemini_key
+        os.environ["GEMINI_API_KEY"] = inst.gemini_key
+    return inst
 
 
 settings = get_settings()

@@ -2,12 +2,18 @@ from fastapi import FastAPI, Depends, HTTPException
 from app.routes.user_routes import router as user_router
 from app.routes.invoice_routes import router as invoice_router
 from app.routes.admin_routers import router as admin_router
+from app.database import engine
+from app.models import Base
 from fastapi.middleware.cors import CORSMiddleware
+
+# Initialize all database tables on application launch
+Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
 
 origins = [
-    "http://localhost:3000",      # React/Vue local dev server
+    "http://localhost:3000",      # React/Next.js local dev server
+    "http://127.0.0.1:3000",
 ]
 
 app.add_middleware(

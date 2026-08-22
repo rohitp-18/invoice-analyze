@@ -1,13 +1,14 @@
 import jwt
 from datetime import datetime, timedelta, timezone
 from passlib.context import CryptContext
+from app.config import settings
 
-# Secret key used to sign the JWT. Keep this safe in production!
-SECRET_KEY = "your-super-secret-key-change-this-in-production"
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+# Secret key and algorithm from configuration
+SECRET_KEY = settings.SECRET_KEY
+ALGORITHM = settings.ALGORITHM
+ACCESS_TOKEN_EXPIRE_MINUTES = settings.ACCESS_TOKEN_EXPIRE_MINUTES
 
-# This setup is perfect. It tells Passlib to automatically truncate long passwords.
+# Passlib password hashing context
 pwd_context = CryptContext(
     schemes=["bcrypt"], 
     deprecated="auto", 
@@ -15,7 +16,6 @@ pwd_context = CryptContext(
 )
 
 def get_password_hash(password: str) -> str:
-    # Passlib handles the 72-byte limit automatically now!
     return pwd_context.hash(password)
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -23,11 +23,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 def create_access_token(data: dict):
     to_encode = data.copy()
-    
-    # Set token expiration time
     expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": expire})
-    
-    # Generate the JWT
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt

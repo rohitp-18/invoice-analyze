@@ -11,13 +11,13 @@ def get_embeddings(provider: Optional[str] = None) -> Embeddings:
     with optional fallback to Ollama embeddings for local offline execution.
     """
     selected_provider = provider or settings.LLM_PROVIDER
+    api_key = settings.gemini_key or os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
 
     # 1. Primary: Google Text Embedding
-    if selected_provider == "gemini" or settings.GEMINI_API_KEY:
+    if selected_provider == "gemini" or api_key:
         try:
             from langchain_google_genai import GoogleGenerativeAIEmbeddings
 
-            api_key = settings.GEMINI_API_KEY or os.getenv("GEMINI_API_KEY")
             if api_key:
                 return GoogleGenerativeAIEmbeddings(
                     model=settings.GEMINI_EMBEDDING_MODEL,
@@ -44,4 +44,4 @@ def get_embeddings(provider: Optional[str] = None) -> Embeddings:
         print("[Notice] Using FakeEmbeddings for testing/fallback environment.")
         return FakeEmbeddings(size=768)
     except Exception:
-        raise RuntimeError("No embedding provider available. Set GEMINI_API_KEY or run Ollama.")
+        raise RuntimeError("No embedding provider available. Set GOOGLE_API_KEY / GEMINI_API_KEY or run Ollama.")
