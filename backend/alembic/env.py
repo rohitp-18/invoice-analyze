@@ -8,7 +8,6 @@ from alembic import context
 # Add these two lines:
 import app.models
 from app.database import Base
-from app.models import user_model  # Ensure this import is present to initialize the database
 
 # Update this line to use your Base.metadata:
 

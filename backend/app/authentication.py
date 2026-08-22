@@ -3,7 +3,7 @@ from fastapi.security import OAuth2PasswordBearer
 import jwt
 from sqlalchemy.orm import Session
 
-import app.models.user_model as models
+from app.models import User
 from app.schemas.user_schema import TokenData
 from app.utils import utils
 from app.database import SessionLocal
@@ -47,7 +47,7 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
         raise credentials_exception
 
     # 4. Fetch the user from the database
-    user = db.query(models.User).filter(models.User.email == token_data.email).first()
+    user = db.query(User).filter(User.email == token_data.email).first()
     if user is None:
         raise credentials_exception
         

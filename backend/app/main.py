@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Depends, HTTPException
 from app.routes.user_routes import router as user_router
 from app.routes.invoce_routes import router as invoice_router
+from app.routes.admin_routers import router as admin_router
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
@@ -27,6 +28,7 @@ async def read_root():
 
 app.include_router(user_router)
 app.include_router(invoice_router)  # Include the invoice router
+app.include_router(admin_router)    # Include the admin router
 
 if __name__ == "__main__":
     import uvicorn

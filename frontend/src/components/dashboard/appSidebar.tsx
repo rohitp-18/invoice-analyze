@@ -88,8 +88,8 @@ const data = {
           url: "#",
         },
         {
-          title: "Team Members",
-          url: "#",
+          title: "Teams & Members",
+          url: "/dashboard/actions/teams",
         },
       ],
     },
