@@ -38,6 +38,7 @@ interface AuthState {
     id: string;
     email: string;
   } | null;
+  loading?: boolean;
 }
 
 const initialState: AuthState = {
