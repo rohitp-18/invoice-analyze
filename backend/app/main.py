@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Depends, HTTPException
 from app.routes.user_routes import router as user_router
-from app.routes.invoce_routes import router as invoice_router
+from app.routes.invoice_routes import router as invoice_router
 from app.routes.admin_routers import router as admin_router
 from fastapi.middleware.cors import CORSMiddleware
 

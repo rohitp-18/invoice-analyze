@@ -1,8 +1,9 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 
-# Replace user, password, localhost, and dbname with your actual PostgreSQL credentials
-SQLALCHEMY_DATABASE_URL = "postgresql://postgres:Rohit18@localhost/invoices"
+from app.config import settings
+
+SQLALCHEMY_DATABASE_URL = settings.DATABASE_URL
 
 engine = create_engine(SQLALCHEMY_DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

@@ -1,0 +1,33 @@
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+pydantic>=2.10.0
+pydantic-settings>=2.6.0
+python-dotenv>=1.0.1
+python-multipart>=0.0.18
+sqlalchemy>=2.0.36
+psycopg2-binary>=2.9.10
+alembic>=1.14.0
+pyjwt>=2.10.1
+passlib[bcrypt]>=1.7.4
+
+# LangChain & LangGraph Orchestration
+langchain>=0.3.14
+langchain-core>=0.3.29
+langchain-community>=0.3.14
+langgraph>=0.2.60
+
+# LLM & Embedding Providers
+langchain-google-genai>=2.0.8
+google-genai>=1.0.0
+langchain-ollama>=0.2.2
+
+# Vector Stores (Local & Production)
+faiss-cpu>=1.9.0
+pinecone-client>=5.0.0
+langchain-pinecone>=0.2.0
+
+# Document & OCR Utilities
+pypdf>=5.1.0
+pdfplumber>=0.11.4
+pillow>=11.0.0
+requests>=2.32.3
