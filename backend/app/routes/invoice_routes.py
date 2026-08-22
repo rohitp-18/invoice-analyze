@@ -296,7 +296,36 @@ async def upload_and_validate_invoice(
 
 
 # ============================================================================
-# 4. RETRIEVAL ROUTES
+# 4. SCHEMAS & RBAC FOR INVOICE DECISIONS
+# ============================================================================
+from pydantic import BaseModel, Field
+
+class InvoiceDecisionRequest(BaseModel):
+    status: str = Field(..., description="Decision: APPROVED, REJECTED, FLAGGED, PENDING_REVIEW")
+    notes: Optional[str] = Field(default=None, description="Optional audit notes or reviewer remarks")
+
+
+def require_invoice_decision_maker(current_user: User = Depends(get_current_user)) -> User:
+    """
+    Role-Based Access Control:
+    Auditor, Admin, Finance, Compliance, and Manager users can approve/reject invoices.
+    """
+    role = (current_user.role or "").upper()
+    dept = (current_user.department or "").upper()
+    
+    allowed_roles = {"ADMIN", "AUDITOR", "FINANCE", "COMPLIANCE", "MANAGER", "SUPERADMIN"}
+    allowed_depts = {"FINANCE", "COMPLIANCE", "ADMIN", "AUDIT", "LEGAL"}
+
+    if role not in allowed_roles and dept not in allowed_depts:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: Invoice approval/rejection requires Auditor, Finance, Compliance, Manager, or Admin privileges.",
+        )
+    return current_user
+
+
+# ============================================================================
+# 5. RETRIEVAL & HUMAN-IN-THE-LOOP ROUTES
 # ============================================================================
 @router.get("/get-all-invoice")
 def get_all_invoices(
@@ -304,10 +333,52 @@ def get_all_invoices(
     current_user: User = Depends(get_current_user),
 ):
     """
-    Retrieve all invoices in the ledger.
+    Retrieve all invoices in the ledger with submitter, approver, line items, and anomalies.
     """
     invoices = db.query(Invoice).order_by(Invoice.created_at.desc()).all()
-    return invoices
+    
+    results = []
+    for inv in invoices:
+        results.append({
+            "id": str(inv.id),
+            "invoice_number": inv.invoice_number,
+            "vendor_name": inv.vendor_name,
+            "invoice_date": str(inv.invoice_date) if inv.invoice_date else None,
+            "total_amount": float(inv.total_amount) if inv.total_amount is not None else 0.0,
+            "currency": inv.currency,
+            "status": inv.status,
+            "document_url": inv.document_url,
+            "submitter_id": str(inv.submitter_id) if inv.submitter_id else None,
+            "submitter_name": inv.submitter.name if inv.submitter else "Unknown",
+            "submitter_email": inv.submitter.email if inv.submitter else None,
+            "submitter_department": inv.submitter.department if inv.submitter else None,
+            "approver_id": str(inv.approver_id) if inv.approver_id else None,
+            "approver_name": inv.approver.name if inv.approver else None,
+            "created_at": inv.created_at.isoformat() if inv.created_at else None,
+            "line_items": [
+                {
+                    "id": str(li.id),
+                    "description": li.description,
+                    "quantity": float(li.quantity),
+                    "unit_price": float(li.unit_price),
+                    "total_amount": float(li.total_amount),
+                    "category": li.category,
+                }
+                for li in inv.line_items
+            ],
+            "anomalies": [
+                {
+                    "id": str(an.id),
+                    "anomaly_type": an.anomaly_type,
+                    "severity": an.severity,
+                    "explanation": an.explanation,
+                    "evidence": an.evidence,
+                    "created_at": an.created_at.isoformat() if an.created_at else None,
+                }
+                for an in inv.anomalies
+            ],
+        })
+    return results
 
 
 @router.get("/{invoice_id}")
@@ -317,7 +388,66 @@ def get_invoice_details(
     current_user: User = Depends(get_current_user),
 ):
     """
-    Retrieve specific invoice details along with line items and anomalies.
+    Retrieve specific invoice details along with full line items and anomalies.
+    """
+    inv = db.query(Invoice).filter(Invoice.id == invoice_id).first()
+    if not inv:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Invoice not found",
+        )
+    
+    return {
+        "id": str(inv.id),
+        "invoice_number": inv.invoice_number,
+        "vendor_name": inv.vendor_name,
+        "invoice_date": str(inv.invoice_date) if inv.invoice_date else None,
+        "total_amount": float(inv.total_amount) if inv.total_amount is not None else 0.0,
+        "currency": inv.currency,
+        "status": inv.status,
+        "document_url": inv.document_url,
+        "submitter_id": str(inv.submitter_id) if inv.submitter_id else None,
+        "submitter_name": inv.submitter.name if inv.submitter else "Unknown",
+        "submitter_email": inv.submitter.email if inv.submitter else None,
+        "submitter_department": inv.submitter.department if inv.submitter else None,
+        "approver_id": str(inv.approver_id) if inv.approver_id else None,
+        "approver_name": inv.approver.name if inv.approver else None,
+        "created_at": inv.created_at.isoformat() if inv.created_at else None,
+        "line_items": [
+            {
+                "id": str(li.id),
+                "description": li.description,
+                "quantity": float(li.quantity),
+                "unit_price": float(li.unit_price),
+                "total_amount": float(li.total_amount),
+                "category": li.category,
+            }
+            for li in inv.line_items
+        ],
+        "anomalies": [
+            {
+                "id": str(an.id),
+                "anomaly_type": an.anomaly_type,
+                "severity": an.severity,
+                "explanation": an.explanation,
+                "evidence": an.evidence,
+                "created_at": an.created_at.isoformat() if an.created_at else None,
+            }
+            for an in inv.anomalies
+        ],
+    }
+
+
+@router.post("/{invoice_id}/decision")
+def update_invoice_decision(
+    invoice_id: uuid.UUID,
+    decision_in: InvoiceDecisionRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_invoice_decision_maker),
+):
+    """
+    Human-in-the-Loop decision endpoint:
+    Allows Auditor, Admin, Finance, Compliance, or Manager to Approve, Reject, or Flag an invoice.
     """
     invoice = db.query(Invoice).filter(Invoice.id == invoice_id).first()
     if not invoice:
@@ -325,4 +455,38 @@ def get_invoice_details(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Invoice not found",
         )
-    return invoice
+
+    valid_statuses = {"APPROVED", "REJECTED", "FLAGGED", "PENDING_REVIEW"}
+    requested_status = decision_in.status.upper()
+    if requested_status not in valid_statuses:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid status: '{decision_in.status}'. Must be one of {valid_statuses}",
+        )
+
+    invoice.status = requested_status
+    invoice.approver_id = current_user.id
+    
+    # If notes provided and status is FLAGGED or REJECTED, we can log an AnomalyFinding or record
+    if decision_in.notes and requested_status in ["FLAGGED", "REJECTED"]:
+        manual_finding = AnomalyFinding(
+            id=uuid.uuid4(),
+            invoice_id=invoice.id,
+            anomaly_type="HUMAN_REVIEWER_FLAG",
+            severity="HIGH" if requested_status == "FLAGGED" else "CRITICAL",
+            explanation=f"Reviewer ({current_user.name} / {current_user.role}): {decision_in.notes}",
+            evidence=f"Reviewed by {current_user.email} on {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}",
+        )
+        db.add(manual_finding)
+
+    db.commit()
+    db.refresh(invoice)
+
+    print(f"[HumanDecision] Invoice {invoice.invoice_number} marked as '{invoice.status}' by {current_user.name} ({current_user.role}).")
+
+    return {
+        "message": f"Invoice {invoice.invoice_number} successfully marked as {invoice.status}.",
+        "invoice_id": str(invoice.id),
+        "status": invoice.status,
+        "approver_name": current_user.name,
+    }

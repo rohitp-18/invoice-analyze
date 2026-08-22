@@ -7,6 +7,8 @@ from app.ai.graph.state import InvoiceState
 from app.ai.ocr_service import ocr_service, ExtractedInvoiceData
 from app.ai.vector_store import vector_store_manager
 from app.ai.llm_factory import get_llm
+from app.database import SessionLocal
+from app.models import CompliancePolicy
 
 
 def ocr_extraction_node(state: InvoiceState) -> Dict[str, Any]:
@@ -54,31 +56,64 @@ def ocr_extraction_node(state: InvoiceState) -> Dict[str, Any]:
 
 def vector_retrieval_node(state: InvoiceState) -> Dict[str, Any]:
     """
-    Node 2: Search Vector Store (FAISS / Pinecone) for historical invoices & vendor pricing context.
+    Node 2: Search Vector Store (FAISS / Pinecone) for historical invoices & compliance policy rules.
     """
     print("\n------------------------------------------------------------")
-    print("▶ [LangGraph Node 2/5] Vector Context Retrieval Node (FAISS / Pinecone)")
+    print("▶ [LangGraph Node 2/5] Vector Context & Compliance Policy Retrieval Node")
     print("------------------------------------------------------------")
 
     extracted = state.get("extracted_data") or {}
     vendor = extracted.get("vendor_name", "")
+    total_amount = extracted.get("total_amount", 0.0)
     items_desc = " ".join([i.get("description", "") for i in extracted.get("line_items", [])])
 
-    query = f"Vendor: {vendor}. Items: {items_desc}"
+    query = f"Vendor: {vendor}. Items: {items_desc}. Amount: ${total_amount}"
     print(f"  🔍 Querying Vector Store for: {query[:80]}...")
 
+    historical_data = []
+    vector_policies = []
+
     try:
-        matches = vector_store_manager.similarity_search(query=query, k=3)
-        historical_data = [
-            {"content": doc.page_content, "metadata": doc.metadata}
-            for doc in matches
-            if doc.metadata.get("type") != "baseline"
-        ]
-        print(f"  ✅ Retrieved {len(historical_data)} historical matching records.")
-        return {"historical_matches": historical_data}
+        matches = vector_store_manager.similarity_search(query=query, k=6)
+        for doc in matches:
+            doc_type = doc.metadata.get("type")
+            if doc_type == "compliance_policy":
+                vector_policies.append({"content": doc.page_content, "metadata": doc.metadata})
+            elif doc_type != "baseline":
+                historical_data.append({"content": doc.page_content, "metadata": doc.metadata})
+
+        print(f"  ✅ Retrieved {len(historical_data)} historical invoices and {len(vector_policies)} relevant vector policies.")
     except Exception as e:
         print(f"  ⚠️ Vector store retrieval notice (non-fatal): {e}")
-        return {"historical_matches": []}
+
+    # Also query active compliance policies directly from PostgreSQL to guarantee 100% policy coverage
+    active_db_policies = []
+    try:
+        db = SessionLocal()
+        try:
+            db_rules = db.query(CompliancePolicy).filter(CompliancePolicy.is_active == True).all()
+            for r in db_rules:
+                active_db_policies.append({
+                    "policy_code": r.policy_code,
+                    "title": r.title,
+                    "category": r.category,
+                    "rule_type": r.rule_type,
+                    "max_amount": float(r.max_amount) if r.max_amount is not None else None,
+                    "currency": r.currency,
+                    "severity": r.severity,
+                    "department": r.department or "All",
+                    "description": r.description,
+                })
+            print(f"  📜 Loaded {len(active_db_policies)} active compliance policies from database.")
+        finally:
+            db.close()
+    except Exception as db_err:
+        print(f"  ⚠️ Database policy fetch notice: {db_err}")
+
+    return {
+        "historical_matches": historical_data,
+        "applicable_policies": active_db_policies or vector_policies,
+    }
 
 
 def rule_validation_node(state: InvoiceState) -> Dict[str, Any]:
@@ -141,19 +176,20 @@ def rule_validation_node(state: InvoiceState) -> Dict[str, Any]:
 def anomaly_detection_node(state: InvoiceState) -> Dict[str, Any]:
     """
     Node 4: AI Forensic Anomaly Detection with Strict Deterministic Severity Rubric.
-    Evaluates extraction against historical context and rule checks.
+    Evaluates extraction against active corporate compliance policies and historical records.
     """
     print("\n------------------------------------------------------------")
-    print("▶ [LangGraph Node 4/5] AI Forensic Anomaly Detection Node")
+    print("▶ [LangGraph Node 4/5] AI Forensic Anomaly & Policy Enforcement Node")
     print("------------------------------------------------------------")
 
     extracted = state.get("extracted_data") or {}
     historical = state.get("historical_matches", [])
+    applicable_policies = state.get("applicable_policies", [])
     rule_checks = state.get("rule_checks", [])
 
     system_prompt = (
         "You are an AI Forensic Auditor operating under strict Corporate Financial Audit Standards. "
-        "Your mission is to evaluate the provided invoice data with 100% deterministic consistency.\n\n"
+        "Your mission is to evaluate the provided invoice data against active corporate policies with 100% deterministic consistency.\n\n"
         "=== STRICT SEVERITY CLASSIFICATION MATRIX ===\n"
         "You MUST classify anomalies according to these exact criteria:\n\n"
         "1. CRITICAL (Risk Score 0.85 - 1.00):\n"
@@ -161,30 +197,29 @@ def anomaly_detection_node(state: InvoiceState) -> Dict[str, Any]:
         "   - Duplicate invoice: Identical invoice number and vendor with matching amount found in historical records.\n"
         "   - Fraudulent/Impossible dates: Invoice date is set > 30 days in the future or in a closed fiscal year.\n\n"
         "2. HIGH (Risk Score 0.60 - 0.84):\n"
-        "   - Capital expenditure policy breach: Total invoice amount exceeds $10,000.00.\n"
-        "   - Noticeable calculation mismatch: Sum of line items differs from total by $5.00 to $50.00.\n"
+        "   - Policy threshold breach: Invoice exceeds a defined policy maximum (e.g. CapEx threshold limit).\n"
+        "   - Calculation mismatch: Sum of line items differs from total by $5.00 to $50.00.\n"
         "   - Missing vendor identity: No verifiable vendor name or legal entity identifier.\n\n"
         "3. MEDIUM (Risk Score 0.30 - 0.59):\n"
-        "   - Price outlier: Item unit price is > 30% higher than historical benchmark.\n"
+        "   - Unit price outlier: Item unit price is > 30% higher than historical benchmark.\n"
         "   - Minor calculation discrepancy: Difference between items sum and total is $0.50 to $4.99.\n"
-        "   - Unitemized round-number expense: Flat unitemized lump sum (e.g. exactly $5,000.00) without breakdown.\n\n"
+        "   - Travel/Dining breach: Meal or travel expense exceeding corporate daily caps.\n\n"
         "4. LOW (Risk Score 0.10 - 0.29):\n"
         "   - Cent rounding difference: Rounding discrepancy < $0.50.\n"
-        "   - Minor name abbreviation or formatting notice (e.g. 'Inc' vs 'Incorporated').\n"
-        "   - Informational note: Missing non-critical metadata (e.g. optional phone number).\n\n"
+        "   - Minor company name abbreviation or formatting note (e.g. 'Inc' vs 'Incorporated').\n\n"
         "5. CLEAN / NO ANOMALY (Risk Score 0.00 - 0.09):\n"
-        "   - IF mathematical sums match within $0.05, total is <= $10,000, and vendor is legitimate, "
+        "   - IF mathematical sums match within $0.05, amount is within policy limits, and vendor is legitimate, "
         "     YOU MUST RETURN an empty anomalies list '[]' and risk_score 0.05.\n"
-        "   - DO NOT invent anomalies or speculate about fraud if the invoice is clean and valid.\n\n"
+        "   - DO NOT invent speculative violations if the invoice complies with all rules.\n\n"
         "=== OUTPUT FORMAT ===\n"
-        "Return ONLY a JSON object with this exact schema:\n"
+        "Return ONLY a valid JSON object with this exact schema:\n"
         "{\n"
         '  "anomalies": [\n'
         '    {\n'
-        '      "anomaly_type": "string (e.g. MATH_MISMATCH, HIGH_VALUE_THRESHOLD, PRICE_OUTLIER, DUPLICATE_INVOICE)",\n'
+        '      "anomaly_type": "string (e.g. POLICY_VIOLATION, MATH_MISMATCH, HIGH_VALUE_THRESHOLD, PRICE_OUTLIER, DUPLICATE_INVOICE)",\n'
         '      "severity": "CRITICAL" | "HIGH" | "MEDIUM" | "LOW",\n'
-        '      "explanation": "Clear, factual explanation citing exact numbers",\n'
-        '      "evidence": "Exact numbers and fields from invoice"\n'
+        '      "explanation": "Clear, factual explanation citing exact numbers and violated policy code",\n'
+        '      "evidence": "Exact numbers, dates, and policy code"\n'
         '    }\n'
         "  ],\n"
         '  "risk_score": 0.05\n'
@@ -193,13 +228,14 @@ def anomaly_detection_node(state: InvoiceState) -> Dict[str, Any]:
 
     user_payload = (
         f"INVOICE UNDER AUDIT:\n{json.dumps(extracted, indent=2)}\n\n"
+        f"ACTIVE CORPORATE COMPLIANCE POLICIES (FROM VECTOR STORE & DB):\n{json.dumps(applicable_policies, indent=2)}\n\n"
         f"HISTORICAL SIMILAR INVOICES:\n{json.dumps(historical, indent=2)}\n\n"
         f"DETERMINISTIC RULE RESULTS:\n{json.dumps(rule_checks, indent=2)}"
     )
 
     try:
         llm = get_llm(temperature=0.0)
-        print("  🤖 Executing forensic audit with temperature=0.0...")
+        print(f"  🤖 Evaluating invoice against {len(applicable_policies)} corporate policies with temperature=0.0...")
         response = llm.invoke([
             SystemMessage(content=system_prompt),
             HumanMessage(content=user_payload),
@@ -277,6 +313,7 @@ def decision_routing_node(state: InvoiceState) -> Dict[str, Any]:
                 Document(
                     page_content=doc_content,
                     metadata={
+                        "type": "invoice",
                         "invoice_number": extracted.get("invoice_number", ""),
                         "vendor_name": extracted.get("vendor_name", ""),
                         "amount": extracted.get("total_amount", 0.0),

@@ -9,24 +9,39 @@ from app.ai.embeddings import get_embeddings
 class VectorStoreManager:
     """
     Unified Vector Store Manager.
-    Automatically routes to FAISS in local development and Pinecone in production.
+    Automatically routes to FAISS for local development and Pinecone for production.
     """
 
     def __init__(self, provider: Optional[str] = None):
-        self.provider = provider or settings.active_vector_store
-        self.embeddings = get_embeddings()
+        self._explicit_provider = provider
+        self._embeddings = None
         self._vector_store: Optional[VectorStore] = None
+
+    @property
+    def embeddings(self):
+        if self._embeddings is None:
+            self._embeddings = get_embeddings()
+        return self._embeddings
+
+    @property
+    def provider(self) -> str:
+        if self._explicit_provider:
+            return self._explicit_provider
+        return settings.active_vector_store
 
     def get_vector_store(self) -> VectorStore:
         if self._vector_store is not None:
             return self._vector_store
 
-        if self.provider == "faiss":
+        active = self.provider
+        print(f"[VectorStore] Active Environment: '{settings.ENVIRONMENT.upper()}' | Using Provider: '{active.upper()}'")
+
+        if active == "faiss":
             self._vector_store = self._init_faiss()
-        elif self.provider == "pinecone":
+        elif active == "pinecone":
             self._vector_store = self._init_pinecone()
         else:
-            raise ValueError(f"Unknown vector store provider: {self.provider}")
+            raise ValueError(f"Unknown vector store provider: {active}")
 
         return self._vector_store
 
@@ -39,16 +54,16 @@ class VectorStoreManager:
 
         if os.path.exists(index_file):
             try:
-                print(f"[FAISS] Loading existing index from {index_dir}")
+                print(f"[FAISS] Loading local index from: {index_dir}")
                 return FAISS.load_local(
                     folder_path=index_dir,
                     embeddings=self.embeddings,
                     allow_dangerous_deserialization=True,
                 )
             except Exception as e:
-                print(f"[FAISS] Error loading local index: {e}. Initializing fresh index.")
+                print(f"[FAISS] Error loading local index: {e}. Reinitializing fresh index.")
 
-        # Create a fresh empty FAISS store with an initial placeholder document
+        # Create a fresh empty FAISS store with an initial baseline document
         os.makedirs(index_dir, exist_ok=True)
         placeholder_doc = Document(
             page_content="Invoice validation initial index baseline",
@@ -56,7 +71,7 @@ class VectorStoreManager:
         )
         vector_store = FAISS.from_documents([placeholder_doc], self.embeddings)
         vector_store.save_local(index_dir)
-        print(f"[FAISS] Initialized new local index at {index_dir}")
+        print(f"[FAISS] Initialized fresh local FAISS index at {index_dir}")
         return vector_store
 
     def _init_pinecone(self) -> VectorStore:
@@ -67,15 +82,14 @@ class VectorStoreManager:
 
             api_key = settings.PINECONE_API_KEY or os.getenv("PINECONE_API_KEY")
             if not api_key:
-                raise ValueError("PINECONE_API_KEY must be provided for production vector store.")
+                raise ValueError("PINECONE_API_KEY is required for production Pinecone vector store.")
 
             pc = Pinecone(api_key=api_key)
             index_name = settings.PINECONE_INDEX_NAME
 
-            # Verify index exists
+            # Verify index availability
             existing_indexes = [idx.name for idx in pc.list_indexes()]
-            if index_name not in existing_indexes:
-                print(f"[Pinecone] Index '{index_name}' not found. Available indexes: {existing_indexes}")
+            print(f"[Pinecone] Connecting to cloud index '{index_name}' (Available: {existing_indexes})")
 
             return PineconeVectorStore(
                 index_name=index_name,
@@ -114,7 +128,7 @@ class VectorStoreManager:
         if self.provider == "faiss" and self._vector_store is not None:
             os.makedirs(settings.FAISS_INDEX_DIR, exist_ok=True)
             self._vector_store.save_local(settings.FAISS_INDEX_DIR)
-            print(f"[FAISS] Saved vector store to {settings.FAISS_INDEX_DIR}")
+            print(f"[FAISS] Saved index snapshot to {settings.FAISS_INDEX_DIR}")
 
 
 # Default singleton instance

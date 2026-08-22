@@ -8,6 +8,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     """
     Application-wide configuration loaded from environment variables and .env file.
+    Automatically toggles Database URLs and Vector Stores based on the active ENVIRONMENT.
     """
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -21,11 +22,17 @@ class Settings(BaseSettings):
     APP_NAME: str = "Invoice Validate AI"
     DEBUG: bool = False
 
-    # Database
-    DATABASE_URL: str = Field(
+    # Database URLs
+    # Development uses local DATABASE_URL, Production uses DEVELOPMENT_DATABASE_URL / PRODUCTION_DATABASE_URL
+    DATABASE_URL: Optional[str] = Field(
         default="postgresql://postgres:Rohit18@localhost:5432/invoices",
-        validation_alias=AliasChoices("DATABASE_URL", "POSTGRES_URL"),
+        validation_alias=AliasChoices("DATABASE_URL", "LOCAL_DATABASE_URL"),
     )
+    DEVELOPMENT_DATABASE_URL: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("DEVELOPMENT_DATABASE_URL", "PRODUCTION_DATABASE_URL", "POSTGRES_URL"),
+    )
+    PRODUCTION_DATABASE_URL: Optional[str] = None
 
     # Authentication & JWT
     SECRET_KEY: str = "super-secret-key-change-in-production-1234567890"
@@ -51,7 +58,7 @@ class Settings(BaseSettings):
     OLLAMA_VISION_MODEL: str = "llama3.2-vision"
     OLLAMA_EMBEDDING_MODEL: str = "nomic-embed-text"
 
-    # Vector Stores
+    # Vector Stores (FAISS for local development, Pinecone for production)
     VECTOR_STORE_PROVIDER: Literal["auto", "faiss", "pinecone"] = "auto"
     FAISS_INDEX_DIR: str = "./data/faiss_index"
 
@@ -75,10 +82,32 @@ class Settings(BaseSettings):
 
     @property
     def is_production(self) -> bool:
-        return self.ENVIRONMENT.lower() == "production"
+        return self.ENVIRONMENT.lower() in ["production", "prod"]
+
+    @property
+    def active_database_url(self) -> str:
+        """
+        Returns DATABASE_URL for local development, and DEVELOPMENT_DATABASE_URL
+        (or PRODUCTION_DATABASE_URL) when ENVIRONMENT is set to production.
+        """
+        if self.is_production:
+            return (
+                self.DEVELOPMENT_DATABASE_URL
+                or self.PRODUCTION_DATABASE_URL
+                or self.DATABASE_URL
+                or "postgresql://postgres:postgres@localhost:5432/invoices"
+            )
+        return (
+            self.DATABASE_URL
+            or self.DEVELOPMENT_DATABASE_URL
+            or "postgresql://postgres:Rohit18@localhost:5432/invoices"
+        )
 
     @property
     def active_vector_store(self) -> Literal["faiss", "pinecone"]:
+        """
+        Uses FAISS for local development and Pinecone for production.
+        """
         if self.VECTOR_STORE_PROVIDER == "auto":
             return "pinecone" if self.is_production else "faiss"
         return self.VECTOR_STORE_PROVIDER

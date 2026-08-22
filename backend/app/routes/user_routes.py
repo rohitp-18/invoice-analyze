@@ -63,3 +63,48 @@ def login_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
 def read_current_user(current_user: User = Depends(get_current_user)):
     # Return the current authenticated user
     return current_user
+
+
+@router.put("/me", response_model=schemas.UserResponse)
+def update_current_user(
+    profile_data: schemas.UserProfileUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Update profile details for the authenticated user.
+    """
+    if profile_data.name is not None and profile_data.name.strip():
+        current_user.name = profile_data.name.strip()
+    if profile_data.department is not None and profile_data.department.strip():
+        current_user.department = profile_data.department.strip()
+    if profile_data.password and len(profile_data.password.strip()) >= 4:
+        current_user.hashed_password = utils.get_password_hash(str(profile_data.password.strip()[:72]))
+
+    db.commit()
+    db.refresh(current_user)
+    return current_user
+
+
+@router.post("/change-password")
+def change_user_password(
+    data: schemas.PasswordChangeRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Change password after verifying current password.
+    """
+    if not utils.verify_password(data.current_password, str(current_user.hashed_password)):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Current password is incorrect.",
+        )
+    if len(data.new_password.strip()) < 6:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="New password must be at least 6 characters long.",
+        )
+    current_user.hashed_password = utils.get_password_hash(str(data.new_password.strip()[:72]))
+    db.commit()
+    return {"message": "Password updated successfully."}

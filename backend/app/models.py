@@ -2,7 +2,7 @@ from datetime import date, datetime
 from typing import List, Optional
 import uuid
 
-from sqlalchemy import String, Numeric, Date, DateTime, ForeignKey, Text
+from sqlalchemy import String, Numeric, Date, DateTime, ForeignKey, Text, Boolean
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
@@ -18,8 +18,8 @@ class User(Base):
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
-    department: Mapped[Optional[str]] = mapped_column(String(100)) # e.g., Finance, procurement, admin, compliance
-    role: Mapped[str] = mapped_column(String(50), default="EMPLOYEE") # e.g., EMPLOYEE, MANAGER, AUDITOR, admin
+    department: Mapped[Optional[str]] = mapped_column(String(100))  # e.g., Finance, Procurement, Admin, Compliance
+    role: Mapped[str] = mapped_column(String(50), default="EMPLOYEE")  # e.g., EMPLOYEE, MANAGER, AUDITOR, ADMIN, COMPLIANCE
     created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now(), server_default=func.now())
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)  # Store hashed passwords
 
@@ -32,6 +32,10 @@ class User(Base):
     approved_invoices: Mapped[List["Invoice"]] = relationship(
         back_populates="approver",
         foreign_keys="Invoice.approver_id"
+    )
+    created_policies: Mapped[List["CompliancePolicy"]] = relationship(
+        back_populates="creator",
+        foreign_keys="CompliancePolicy.created_by_id"
     )
 
 
@@ -96,3 +100,32 @@ class AnomalyFinding(Base):
 
     # Relationships
     invoice: Mapped["Invoice"] = relationship(back_populates="anomalies")
+
+
+class CompliancePolicy(Base):
+    """
+    Compliance & Corporate Expense Policy Rules Table.
+    Used by the AI agents and auditor engine to enforce organizational standards.
+    """
+    __tablename__ = "compliance_policies"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    policy_code: Mapped[str] = mapped_column(String(100), unique=True, nullable=False, index=True)
+    category: Mapped[str] = mapped_column(String(100), nullable=False)  # e.g., THRESHOLD, TRAVEL, PROCUREMENT, TAX
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    rule_type: Mapped[str] = mapped_column(String(50), default="MAX_AMOUNT")  # e.g., MAX_AMOUNT, CATEGORY_RESTRICTION, VENDOR_RESTRICTION
+    max_amount: Mapped[Optional[float]] = mapped_column(Numeric(12, 2), nullable=True)
+    currency: Mapped[str] = mapped_column(String(10), default="USD", server_default="USD")
+    severity: Mapped[str] = mapped_column(String(20), default="HIGH")  # LOW, MEDIUM, HIGH, CRITICAL
+    department: Mapped[Optional[str]] = mapped_column(String(100), default="All")
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+    created_by_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now(), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=func.now(), onupdate=func.now(), server_default=func.now())
+
+    # Relationships
+    creator: Mapped[Optional["User"]] = relationship(
+        back_populates="created_policies",
+        foreign_keys=[created_by_id]
+    )

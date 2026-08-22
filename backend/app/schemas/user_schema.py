@@ -13,6 +13,17 @@ class UserCreate(BaseModel):
     role: Optional[str] = "EMPLOYEE"
 
 
+class UserProfileUpdate(BaseModel):
+    name: Optional[str] = None
+    department: Optional[str] = None
+    password: Optional[str] = None
+
+
+class PasswordChangeRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+
 # Schema for outgoing user / employee data (hides the password)
 class UserResponse(BaseModel):
     id: uuid.UUID
