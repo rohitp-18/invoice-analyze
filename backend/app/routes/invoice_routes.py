@@ -245,7 +245,7 @@ async def _handle_invoice_upload(
     temp_invoice_number = f"INV-{uuid.uuid4().hex[:8].upper()}"
 
     # Check if PDF file is password protected
-    if file_ext == ".pdf":
+    if expected_type == "pdf":
         try:
             import pypdf
             reader = pypdf.PdfReader(local_file_path)
