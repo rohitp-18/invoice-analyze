@@ -36,9 +36,7 @@ const fetchUser = createAsyncThunk("auth/fetchUser", async (token: string) => {
 
 const logout = createAsyncThunk("auth/logout", async () => {
   try {
-    const res = await axios.post("/auth/logout")
     localStorage.removeItem("token")
-    return res.data
   } catch (error: unknown) {
     if (isAxiosError(error)) {
       throw new Error(error.response?.data?.detail || "Failed to logout");

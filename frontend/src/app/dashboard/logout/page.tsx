@@ -13,6 +13,7 @@ export default function LogoutPage() {
 
   useEffect(() => {
     dispatch(logout());
+    localStorage.removeItem("token")
     router.push("/login");
   }, [dispatch, router]);
 
