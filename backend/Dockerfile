@@ -37,6 +37,7 @@ FROM python:3.11-slim AS runner
 # Prevent Python from writing .pyc files & enable immediate stdout/stderr flush
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
+    VIRTUAL_ENV=/opt/venv \
     PATH="/opt/venv/bin:$PATH"
 
 WORKDIR /app
@@ -47,8 +48,12 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
     curl \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-# Copy the pre-built virtual environment from the builder stage
+# Copy the pre-built virtual environment from the builder stage and ensure permissions
 COPY --from=builder /opt/venv /opt/venv
+RUN chmod -R 755 /opt/venv && \
+    ln -sf /opt/venv/bin/uvicorn /usr/local/bin/uvicorn && \
+    ln -sf /opt/venv/bin/python /usr/local/bin/python && \
+    ln -sf /opt/venv/bin/alembic /usr/local/bin/alembic
 
 # Create a non-root system user for security
 RUN groupadd -g 10001 appgroup && \
@@ -73,5 +78,5 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD curl -f http://localhost:8000/ || exit 1
 
-# Start Uvicorn with single worker optimized for low-spec machines
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
+# Start Uvicorn via python module directly to avoid PATH lookup issues
+CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
