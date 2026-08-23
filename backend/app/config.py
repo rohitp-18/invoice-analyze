@@ -1,7 +1,7 @@
 import os
 from functools import lru_cache
-from typing import Literal, Optional
-from pydantic import Field, AliasChoices
+from typing import Literal, Optional, Any
+from pydantic import Field, AliasChoices, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -21,6 +21,20 @@ class Settings(BaseSettings):
     ENVIRONMENT: Literal["development", "staging", "production"] = "development"
     APP_NAME: str = "Invoice Validate AI"
     DEBUG: bool = False
+
+    @field_validator("ENVIRONMENT", "LLM_PROVIDER", "VECTOR_STORE_PROVIDER", "OCR_ENGINE", mode="before", check_fields=False)
+    @classmethod
+    def normalize_literals(cls, v: Any) -> Any:
+        if isinstance(v, str):
+            clean = v.strip().lower()
+            if clean in ["dev", "local"]:
+                return "development"
+            if clean in ["prod"]:
+                return "production"
+            if clean in ["stage"]:
+                return "staging"
+            return clean
+        return v
 
     # Database URLs
     # Development uses local DATABASE_URL, Production uses DEVELOPMENT_DATABASE_URL / PRODUCTION_DATABASE_URL
@@ -70,6 +84,8 @@ class Settings(BaseSettings):
     # OCR Settings
     OCR_ENGINE: Literal["gemini_vision", "ollama_vision", "text_extractor"] = "gemini_vision"
     MAX_DOCUMENT_PAGES: int = 10
+
+    ALLOWED_ORIGINS: str = "http://localhost:3000,http://localhost:8000,http://[IP_ADDRESS],http://[IP_ADDRESS],https://[IP_ADDRESS]"
 
     @property
     def gemini_key(self) -> Optional[str]:
