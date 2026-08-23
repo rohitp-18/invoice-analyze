@@ -12,6 +12,10 @@ import {
   ShieldCheck,
   X,
   FileUp,
+  Clock,
+  ArrowRight,
+  RefreshCw,
+  Cpu,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -24,8 +28,27 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import axios from "@/store/axios";
 import { isAxiosError } from "axios";
+
+interface UploadResponseData {
+  message: string;
+  invoice_id?: string;
+  invoice_number?: string;
+  vendor_name?: string;
+  status?: string;
+  total_amount?: number;
+  currency?: string;
+  anomalies_detected?: number;
+}
 
 export default function UploadInvoicePage() {
   const router = useRouter();
@@ -38,13 +61,10 @@ export default function UploadInvoicePage() {
   const [isDragging, setIsDragging] = useState(false);
   const [uploadProgressStage, setUploadProgressStage] = useState<string>("");
 
-  const allowedTypes = [
-    "application/pdf",
-    "image/png",
-    "image/jpeg",
-    "image/jpg",
-    "image/webp",
-  ];
+  // Success Modal State
+  const [isSuccessOpen, setIsSuccessOpen] = useState<boolean>(false);
+  const [uploadedData, setUploadedData] = useState<UploadResponseData | null>(null);
+  const [uploadedFileName, setUploadedFileName] = useState<string>("");
 
   const handleFile = (file: File | null) => {
     if (!file) {
@@ -151,29 +171,22 @@ export default function UploadInvoicePage() {
       }, 2500);
 
       // Call FastAPI Backend Endpoint
-      const response = await axios.post(endpoint, formData, {
+      const response = await axios.post<UploadResponseData>(endpoint, formData, {
         headers: {
           "Content-Type": "multipart/form-data",
         },
       });
 
-      const data = response.data;
-
-      // Navigate to success page with query metadata
-      const queryParams = new URLSearchParams({
-        file: invoiceFile.name,
-        invoice_id: data.invoice_id || "",
-        invoice_number: data.invoice_number || "",
-        vendor: data.vendor_name || "",
-        amount: String(data.total_amount || 0),
-        currency: data.currency || "USD",
-        status: data.status || "PENDING_REVIEW",
-        anomalies: String(data.anomalies_detected || 0),
-      });
-
+      // Populate success modal state
+      setUploadedFileName(invoiceFile.name);
+      setUploadedData(response.data);
       setInvoiceFile(null);
       setFilePreview(null);
-      router.push(`/invoice/success?${queryParams.toString()}`);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+
+      setIsSuccessOpen(true);
     } catch (error: unknown) {
       console.error("Invoice upload error:", error);
       if (isAxiosError(error)) {
@@ -184,7 +197,7 @@ export default function UploadInvoicePage() {
         } else {
           setErrorMessage(
             error.response?.data?.detail ||
-              "Upload failed. Please check the backend server status."
+            "Upload failed. Please check the backend server status."
           );
         }
       } else {
@@ -195,6 +208,11 @@ export default function UploadInvoicePage() {
       setUploadProgressStage("");
     }
   }
+
+  const handleCloseSuccess = () => {
+    setIsSuccessOpen(false);
+    router.push("/dashboard");
+  };
 
   const isPdf =
     invoiceFile?.type === "application/pdf" ||
@@ -227,11 +245,10 @@ export default function UploadInvoicePage() {
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
                 onClick={() => fileInputRef.current?.click()}
-                className={`relative flex flex-col items-center justify-center rounded-2xl border-2 border-dashed p-8 text-center cursor-pointer transition-all duration-200 ${
-                  isDragging
+                className={`relative flex flex-col items-center justify-center rounded-2xl border-2 border-dashed p-8 text-center cursor-pointer transition-all duration-200 ${isDragging
                     ? "border-cyan-400 bg-cyan-950/20 scale-[1.01]"
                     : "border-white/15 bg-slate-950/40 hover:border-cyan-500/50 hover:bg-slate-950/60"
-                }`}
+                  }`}
               >
                 <input
                   ref={fileInputRef}
@@ -378,6 +395,77 @@ export default function UploadInvoicePage() {
           </CardContent>
         </Card>
       </section>
+
+      {/* ========================================================================= */}
+      {/* SHADCN SUCCESS MODAL (DIALOG) */}
+      {/* ========================================================================= */}
+      <Dialog
+        open={isSuccessOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            handleCloseSuccess();
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md border border-emerald-500/30 bg-slate-900/95 text-slate-100 backdrop-blur-xl shadow-2xl">
+          <DialogHeader className="items-center text-center">
+            {/* Glowing Success Badge */}
+            <div className="relative mb-2 flex size-16 items-center justify-center rounded-full bg-emerald-500/20 border border-emerald-500/40 shadow-lg shadow-emerald-950/50">
+              <CheckCircle2 className="size-9 text-emerald-400" />
+            </div>
+
+            <DialogTitle className="text-xl font-bold text-white">
+              Invoice Uploaded Successfully!
+            </DialogTitle>
+            <DialogDescription className="text-xs text-slate-300 text-center max-w-sm">
+              Your document has been recorded in the database. The LangGraph AI Agent is actively processing OCR extraction and forensic anomaly checks in the background.
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* Details Overview Card */}
+          <div className="my-2 space-y-2.5 rounded-xl border border-white/10 bg-slate-950/60 p-3.5 text-xs">
+            <div className="flex items-center justify-between">
+              <span className="text-slate-400">File Name:</span>
+              <span className="font-semibold text-white truncate max-w-[200px]">
+                {uploadedFileName || "invoice.pdf"}
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <span className="text-slate-400">Invoice Reference:</span>
+              <span className="font-mono text-cyan-300 font-medium">
+                {uploadedData?.invoice_number || "INV-QUEUED"}
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <span className="text-slate-400">Ledger Status:</span>
+              <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/20 border border-amber-500/30 px-2 py-0.5 text-[11px] font-bold text-amber-300">
+                <Clock className="size-3" />
+                {uploadedData?.status || "PENDING_REVIEW"}
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <span className="text-slate-400">AI Background Worker:</span>
+              <span className="inline-flex items-center gap-1 font-medium text-emerald-300">
+                <Cpu className="size-3" /> Active (LangGraph)
+              </span>
+            </div>
+          </div>
+
+          <DialogFooter className="mt-2">
+            <Button
+              type="button"
+              onClick={handleCloseSuccess}
+              className="w-full bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-semibold text-xs h-9 shadow-md shadow-cyan-950/40"
+            >
+              Continue to Dashboard
+              <ArrowRight className="size-3.5 ml-1.5" />
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </main>
   );
 }

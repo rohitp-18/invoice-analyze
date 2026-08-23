@@ -78,14 +78,14 @@ export default function TeamDetailsPage() {
     } catch (err: unknown) {
       if (isAxiosError(err)) {
         if (err.response?.status === 401) {
-          setErrorMessage("Unauthorized. Please log in to view team members.");
+          setErrorMessage("Unauthorized. Please log in to view department members.");
         } else if (err.response?.status === 404) {
-          setErrorMessage(`Team '${teamName}' not found or has no assigned members.`);
+          setErrorMessage(`Department '${teamName}' not found or has no assigned members.`);
         } else {
-          setErrorMessage(err.response?.data?.detail || "Failed to load team details.");
+          setErrorMessage(err.response?.data?.detail || "Failed to load department details.");
         }
       } else {
-        setErrorMessage("An unexpected error occurred while fetching team data.");
+        setErrorMessage("An unexpected error occurred while fetching department data.");
       }
     } finally {
       setLoading(false);
@@ -160,13 +160,13 @@ export default function TeamDetailsPage() {
               <BreadcrumbSeparator className="text-slate-600" />
               <BreadcrumbItem>
                 <BreadcrumbLink href="/dashboard/actions/teams" className="text-slate-400 hover:text-white">
-                  Teams
+                  Department
                 </BreadcrumbLink>
               </BreadcrumbItem>
               <BreadcrumbSeparator className="text-slate-600" />
               <BreadcrumbItem>
                 <BreadcrumbPage className="font-semibold text-cyan-300 capitalize">
-                  {teamName || "Team Details"}
+                  {teamName || "Department Details"}
                 </BreadcrumbPage>
               </BreadcrumbItem>
             </BreadcrumbList>
@@ -191,7 +191,7 @@ export default function TeamDetailsPage() {
               className="border-white/10 bg-slate-900/60 text-xs text-slate-300 hover:bg-slate-800 hover:text-white"
             >
               <ArrowLeft className="size-3.5 mr-1.5" />
-              Back to Teams
+              Back to Department
             </Button>
           </Link>
         </div>
@@ -209,7 +209,7 @@ export default function TeamDetailsPage() {
                 Department Workspace
               </div>
               <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-white capitalize">
-                {teamName} Team
+                {teamName} Department
               </h1>
               <p className="mt-1.5 text-sm text-slate-400 max-w-xl">
                 Manage members, roles, and invoice review assignments for the{" "}
@@ -247,7 +247,7 @@ export default function TeamDetailsPage() {
         {!loading && errorMessage && (
           <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-6 text-center">
             <AlertCircle className="size-8 text-red-400 mx-auto mb-3" />
-            <h3 className="text-lg font-semibold text-red-200">Unable to load team</h3>
+            <h3 className="text-lg font-semibold text-red-200">Unable to load Department</h3>
             <p className="mt-1 text-sm text-red-300/80 max-w-md mx-auto">{errorMessage}</p>
             <div className="mt-4 flex justify-center gap-3">
               <Button
@@ -260,7 +260,7 @@ export default function TeamDetailsPage() {
               </Button>
               <Link href="/dashboard/actions/teams">
                 <Button size="sm" className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-medium">
-                  View All Teams
+                  View All Departments
                 </Button>
               </Link>
             </div>
@@ -331,11 +331,10 @@ export default function TeamDetailsPage() {
                   <button
                     key={role}
                     onClick={() => setRoleFilter(role)}
-                    className={`rounded-lg px-3 py-1.5 font-medium transition-all ${
-                      roleFilter === role
-                        ? "bg-cyan-500 text-slate-950 shadow-md font-semibold"
-                        : "bg-slate-950/60 border border-white/10 text-slate-400 hover:text-white hover:bg-slate-800"
-                    }`}
+                    className={`rounded-lg px-3 py-1.5 font-medium transition-all ${roleFilter === role
+                      ? "bg-cyan-500 text-slate-950 shadow-md font-semibold"
+                      : "bg-slate-950/60 border border-white/10 text-slate-400 hover:text-white hover:bg-slate-800"
+                      }`}
                   >
                     {role === "ALL" ? "All Roles" : role.charAt(0) + role.slice(1).toLowerCase()}
                   </button>
@@ -347,7 +346,7 @@ export default function TeamDetailsPage() {
             <div className="rounded-xl border border-white/10 bg-slate-900/70 backdrop-blur shadow-sm overflow-hidden">
               <div className="px-6 py-4 border-b border-white/10 flex items-center justify-between">
                 <div>
-                  <h2 className="text-base font-semibold text-white">Team Roster</h2>
+                  <h2 className="text-base font-semibold text-white">Department Roster</h2>
                   <p className="text-xs text-slate-400 mt-0.5">
                     Showing {filteredMembers.length} of {teamData.members.length} members
                   </p>
@@ -395,10 +394,10 @@ export default function TeamDetailsPage() {
 
                         const formattedDate = member.created_at
                           ? new Date(member.created_at).toLocaleDateString("en-US", {
-                              month: "short",
-                              day: "numeric",
-                              year: "numeric",
-                            })
+                            month: "short",
+                            day: "numeric",
+                            year: "numeric",
+                          })
                           : "N/A";
 
                         return (

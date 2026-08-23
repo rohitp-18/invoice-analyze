@@ -34,6 +34,12 @@ import {
   Activity,
   Layers,
   ChevronRight,
+  PieChart,
+  BarChart3,
+  ArrowUpRight,
+  ArrowDownRight,
+  Wallet,
+  Tag,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -43,6 +49,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { formatCurrency } from "@/lib/utils";
 import {
   Table,
   TableBody,
@@ -68,14 +75,77 @@ interface MetricItem {
   type: "primary" | "success" | "warning" | "danger";
 }
 
+interface SpendOverview {
+  total_approved_spend: number;
+  total_subtotal: number;
+  total_tax_paid: number;
+  invoice_count: number;
+  avg_invoice_value: number;
+  last_30_days_spend: number;
+  prev_30_days_spend: number;
+  mom_growth_pct: number;
+  currency: string;
+}
+
+interface VendorSpend {
+  vendor_name: string;
+  total_spend: number;
+  tax_paid: number;
+  invoice_count: number;
+  share_percentage: number;
+}
+
+interface DepartmentSpend {
+  department: string;
+  total_spend: number;
+  invoice_count: number;
+  share_percentage: number;
+}
+
+interface CategorySpend {
+  category: string;
+  total_spend: number;
+  items_count: number;
+  share_percentage: number;
+}
+
+interface MonthlyTrendItem {
+  month: string;
+  label: string;
+  total_spend: number;
+  invoice_count: number;
+}
+
+interface SpendAnalysisData {
+  overview: SpendOverview;
+  top_vendors: VendorSpend[];
+  departments: DepartmentSpend[];
+  categories: CategorySpend[];
+  monthly_trend: MonthlyTrendItem[];
+  criteria: string;
+}
+
 interface RecentInvoice {
   id: string;
   invoice_number: string;
   vendor_name: string;
   invoice_date?: string;
+  subtotal?: number;
+  tax_amount?: number;
   total_amount: number;
   currency: string;
   status: "APPROVED" | "PENDING_REVIEW" | "PROCESSING" | "FLAGGED" | "REJECTED";
+  ai_status?: string;
+  human_status?: string;
+  decision_notes?: string;
+  decision_by_name?: string;
+  decision_by_role?: string;
+  decision_at?: string;
+  overall_confidence?: number;
+  overall_confidance?: number;
+  risk_level?: string;
+  risk_score?: number;
+  recommended_action?: string;
   submitter_name?: string;
   submitter_department?: string;
   approver_name?: string;
@@ -112,6 +182,11 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState<boolean>(true);
   const [errorMsg, setErrorMsg] = useState<string>("");
 
+  // Spend Analysis State
+  const [spendData, setSpendData] = useState<SpendAnalysisData | null>(null);
+  const [spendTimeRange, setSpendTimeRange] = useState<string>("all");
+  const [spendLoading, setSpendLoading] = useState<boolean>(true);
+
   // Quick Decision Modal State
   const [selectedInvoice, setSelectedInvoice] = useState<RecentInvoice | null>(null);
   const [decisionAction, setDecisionAction] = useState<"APPROVED" | "REJECTED" | "FLAGGED" | null>(null);
@@ -122,9 +197,10 @@ export default function DashboardPage() {
   const userRole = (role || user?.role || "EMPLOYEE").toUpperCase();
   const userDept = (user?.department || "General").toUpperCase();
 
+  const isAdmin = ["ADMIN", "SUPERADMIN"].includes(userRole);
   const canMakeDecision =
-    ["ADMIN", "AUDITOR", "FINANCE", "COMPLIANCE", "MANAGER", "SUPERADMIN"].includes(userRole) ||
-    ["FINANCE", "COMPLIANCE", "ADMIN", "AUDIT", "LEGAL"].includes(userDept);
+    ["ADMIN", "AUDITOR", "FINANCE", "SUPERADMIN"].includes(userRole) ||
+    ["FINANCE", "AUDIT", "ADMIN"].includes(userDept);
 
   // Fetch Dashboard Stats
   const fetchDashboardStats = async () => {
@@ -147,8 +223,27 @@ export default function DashboardPage() {
     }
   };
 
+  // Fetch Spend Analysis
+  const fetchSpendAnalysis = async (range = spendTimeRange) => {
+    try {
+      setSpendLoading(true);
+      const res = await axios.get<SpendAnalysisData>(`/spend-analysis/all?time_range=${range}`);
+      setSpendData(res.data);
+    } catch (err) {
+      console.error("Spend analysis fetch error:", err);
+    } finally {
+      setSpendLoading(false);
+    }
+  };
+
+  const handleTimeRangeChange = (range: string) => {
+    setSpendTimeRange(range);
+    fetchSpendAnalysis(range);
+  };
+
   useEffect(() => {
     fetchDashboardStats();
+    fetchSpendAnalysis("all");
   }, []);
 
   // Quick Decision Handlers
@@ -396,6 +491,223 @@ export default function DashboardPage() {
           </div>
         )}
 
+        {/* ========================================================================= */}
+        {/* APPROVED SPEND ANALYSIS & FINANCIAL INTELLIGENCE */}
+        {/* ========================================================================= */}
+        <div className="space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="flex size-6 items-center justify-center rounded-md bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                  <TrendingUp className="size-3.5" />
+                </span>
+                <h2 className="text-lg font-bold text-white tracking-tight">
+                  Approved Spend Analysis & Financial Intelligence
+                </h2>
+              </div>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Financial metrics computed strictly from approved invoices (Human or AI approved). Human rejections are strictly excluded.
+              </p>
+            </div>
+
+            {/* Time Filter Pills */}
+            <div className="flex items-center gap-1 bg-slate-900 border border-white/10 p-1 rounded-lg">
+              {[
+                { label: "30D", val: "30d" },
+                { label: "90D", val: "90d" },
+                { label: "6M", val: "6m" },
+                { label: "1Y", val: "1y" },
+                { label: "All Time", val: "all" },
+              ].map((pill) => (
+                <button
+                  key={pill.val}
+                  onClick={() => handleTimeRangeChange(pill.val)}
+                  className={`px-2.5 py-1 rounded text-xs font-semibold transition-colors ${
+                    spendTimeRange === pill.val
+                      ? "bg-cyan-500 text-slate-950 shadow-sm"
+                      : "text-slate-400 hover:text-white hover:bg-slate-800"
+                  }`}
+                >
+                  {pill.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Spend KPI Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <Card className="border-emerald-500/30 bg-emerald-950/20 backdrop-blur p-4">
+              <div className="flex items-center justify-between text-xs text-emerald-300 font-semibold mb-1">
+                <span>Total Approved Spend</span>
+                <Wallet className="size-4 text-emerald-400" />
+              </div>
+              <div className="text-2xl font-bold font-mono text-white">
+                {formatCurrency(spendData?.overview?.total_approved_spend || 0, spendData?.overview?.currency || "INR")}
+              </div>
+              <div className="flex items-center gap-1.5 text-[11px] text-slate-300 mt-1">
+                {Boolean(spendData?.overview?.mom_growth_pct && spendData.overview.mom_growth_pct > 0) ? (
+                  <span className="text-emerald-400 font-semibold flex items-center">
+                    <ArrowUpRight className="size-3" /> +{spendData?.overview?.mom_growth_pct}% MoM
+                  </span>
+                ) : (
+                  <span className="text-slate-400">Stable MoM Spend</span>
+                )}
+              </div>
+            </Card>
+
+            <Card className="border-white/10 bg-slate-900/60 backdrop-blur p-4">
+              <div className="flex items-center justify-between text-xs text-slate-300 font-semibold mb-1">
+                <span>Pre-Tax Base vs Tax Paid</span>
+                <DollarSign className="size-4 text-cyan-400" />
+              </div>
+              <div className="text-2xl font-bold font-mono text-cyan-300">
+                {formatCurrency(spendData?.overview?.total_subtotal || 0, spendData?.overview?.currency || "INR")}
+              </div>
+              <div className="text-[11px] text-slate-400 mt-1">
+                Tax Paid: <span className="font-semibold text-slate-200">{formatCurrency(spendData?.overview?.total_tax_paid || 0, spendData?.overview?.currency || "INR")}</span>
+              </div>
+            </Card>
+
+            <Card className="border-white/10 bg-slate-900/60 backdrop-blur p-4">
+              <div className="flex items-center justify-between text-xs text-slate-300 font-semibold mb-1">
+                <span>Approved Volume</span>
+                <CheckCircle2 className="size-4 text-emerald-400" />
+              </div>
+              <div className="text-2xl font-bold font-mono text-white">
+                {spendData?.overview?.invoice_count || 0}{" "}
+                <span className="text-xs font-normal text-slate-400">invoices</span>
+              </div>
+              <div className="text-[11px] text-slate-400 mt-1">
+                Cleared through human & AI policies
+              </div>
+            </Card>
+
+            <Card className="border-white/10 bg-slate-900/60 backdrop-blur p-4">
+              <div className="flex items-center justify-between text-xs text-slate-300 font-semibold mb-1">
+                <span>Average Spend / Invoice</span>
+                <PieChart className="size-4 text-purple-400" />
+              </div>
+              <div className="text-2xl font-bold font-mono text-white">
+                {formatCurrency(spendData?.overview?.avg_invoice_value || 0, spendData?.overview?.currency || "INR")}
+              </div>
+              <div className="text-[11px] text-slate-400 mt-1">
+                Average transaction ticket size
+              </div>
+            </Card>
+          </div>
+
+          {/* Vendors & Department Spend Breakdown Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+            {/* Top Vendors by Approved Spend (6 Cols) */}
+            <Card className="lg:col-span-6 border-white/10 bg-slate-900/60 backdrop-blur">
+              <CardHeader className="pb-3 border-b border-white/10 flex flex-row items-center justify-between">
+                <CardTitle className="text-xs font-bold text-white flex items-center gap-2">
+                  <Building className="size-4 text-cyan-400" /> Top Vendors by Approved Spend
+                </CardTitle>
+                <Link
+                  href="/dashboard/analysis"
+                  className="text-[11px] text-cyan-400 hover:text-cyan-300 flex items-center gap-1 font-medium"
+                >
+                  Full Analysis <ChevronRight className="size-3" />
+                </Link>
+              </CardHeader>
+              <CardContent className="pt-3 space-y-3">
+                {spendLoading ? (
+                  <div className="h-44 flex items-center justify-center">
+                    <Loader2 className="size-5 animate-spin text-cyan-400" />
+                  </div>
+                ) : !spendData?.top_vendors || spendData.top_vendors.length === 0 ? (
+                  <div className="h-44 flex items-center justify-center text-xs text-slate-500">
+                    No approved vendor spend recorded for this period.
+                  </div>
+                ) : (
+                  spendData.top_vendors.map((v, i) => (
+                    <div key={v.vendor_name} className="space-y-1 text-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-slate-200 truncate max-w-[200px]" title={v.vendor_name}>
+                          <span className="text-slate-500 font-mono mr-1.5">#{i + 1}</span>
+                          {v.vendor_name}
+                        </span>
+                        <div className="text-right font-mono">
+                          <span className="font-bold text-white">{formatCurrency(v.total_spend, "INR")}</span>
+                          <span className="text-[10px] text-slate-400 ml-1.5 font-sans">({v.share_percentage}%)</span>
+                        </div>
+                      </div>
+                      <div className="w-full bg-slate-950 rounded-full h-1.5 overflow-hidden">
+                        <div
+                          className="bg-cyan-400 h-1.5 rounded-full transition-all duration-300"
+                          style={{ width: `${Math.min(100, Math.max(5, v.share_percentage))}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Department Breakdown & Monthly Spend Trend (6 Cols) */}
+            <div className="lg:col-span-6 space-y-4">
+              {/* Department Distribution */}
+              <Card className="border-white/10 bg-slate-900/60 backdrop-blur">
+                <CardHeader className="pb-3 border-b border-white/10 flex flex-row items-center justify-between">
+                  <CardTitle className="text-xs font-bold text-white flex items-center gap-2">
+                    <Layers className="size-4 text-purple-400" /> Spend by Submitting Department
+                  </CardTitle>
+                  <span className="text-[10px] text-slate-400 font-mono">Cost Center Allocation</span>
+                </CardHeader>
+                <CardContent className="pt-3 space-y-2.5">
+                  {!spendData?.departments || spendData.departments.length === 0 ? (
+                    <div className="h-28 flex items-center justify-center text-xs text-slate-500">
+                      No departmental spend recorded.
+                    </div>
+                  ) : (
+                    spendData.departments.map((d) => (
+                      <div key={d.department} className="space-y-1 text-xs">
+                        <div className="flex items-center justify-between">
+                          <span className="font-semibold text-slate-200">{d.department}</span>
+                          <span className="font-mono text-slate-300">
+                            {formatCurrency(d.total_spend, "INR")}{" "}
+                            <span className="text-[10px] text-slate-400 font-sans">({d.share_percentage}%)</span>
+                          </span>
+                        </div>
+                        <div className="w-full bg-slate-950 rounded-full h-1.5 overflow-hidden">
+                          <div
+                            className="bg-purple-400 h-1.5 rounded-full"
+                            style={{ width: `${Math.min(100, Math.max(5, d.share_percentage))}%` }}
+                          />
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Monthly Trend Bars */}
+              <Card className="border-white/10 bg-slate-900/60 backdrop-blur">
+                <CardHeader className="pb-2 border-b border-white/10 flex flex-row items-center justify-between">
+                  <CardTitle className="text-xs font-bold text-white flex items-center gap-2">
+                    <BarChart3 className="size-4 text-emerald-400" /> Monthly Spend Velocity (Last 6 Months)
+                  </CardTitle>
+                  <span className="text-[10px] text-slate-400 font-mono">Historical Run-Rate</span>
+                </CardHeader>
+                <CardContent className="pt-3">
+                  <div className="grid grid-cols-6 gap-2 text-center">
+                    {spendData?.monthly_trend?.map((item) => (
+                      <div key={item.month} className="bg-slate-950/60 p-2 rounded-lg border border-white/5 space-y-1">
+                        <span className="text-[10px] text-slate-400 block font-mono">{item.label.split(" ")[0]}</span>
+                        <span className="text-xs font-bold text-emerald-300 font-mono block">
+                          {formatCurrency(item.total_spend, "INR").replace(".00", "")}
+                        </span>
+                        <span className="text-[9px] text-slate-500 block">{item.invoice_count} inv</span>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </div>
+
         {/* Main Content Grid: Recent Invoices Queue + Role Shortcuts */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           {/* ========================================================================= */}
@@ -427,7 +739,7 @@ export default function DashboardPage() {
                     </Button>
                   </Link>
                 ) : (
-                  <Link href="/invoice/details">
+                  <Link href="/dashboard/invoices/my">
                     <Button
                       variant="ghost"
                       size="sm"
@@ -508,14 +820,33 @@ export default function DashboardPage() {
                           </TableCell>
 
                           <TableCell className="font-mono font-semibold text-white">
-                            ${Number(inv.total_amount || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                            {formatCurrency(inv.total_amount, inv.currency)}
                           </TableCell>
 
-                          <TableCell>{getStatusBadge(inv.status)}</TableCell>
+                          <TableCell>
+                            <div className="flex flex-col gap-1 items-start">
+                              {getStatusBadge(inv.status)}
+                              {inv.risk_level && (
+                                <span
+                                  className={`rounded px-1.5 py-0.2 text-[9px] font-bold ${
+                                    inv.risk_level.toUpperCase() === "CRITICAL"
+                                      ? "bg-rose-500/20 text-rose-300 border border-rose-500/30"
+                                      : inv.risk_level.toUpperCase() === "HIGH"
+                                      ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
+                                      : inv.risk_level.toUpperCase() === "MEDIUM"
+                                      ? "bg-yellow-500/20 text-yellow-300 border border-yellow-500/30"
+                                      : "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                                  }`}
+                                >
+                                  Risk: {inv.risk_level} ({(inv.risk_score ?? 0.05).toFixed(2)})
+                                </span>
+                              )}
+                            </div>
+                          </TableCell>
 
                           <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                             <div className="flex items-center justify-end gap-1.5">
-                              {canMakeDecision && inv.status === "PENDING_REVIEW" && (
+                              {canMakeDecision && (isAdmin || (inv.human_status !== "APPROVED" && inv.human_status !== "REJECTED")) && inv.status === "PENDING_REVIEW" && (
                                 <>
                                   <Button
                                     size="icon-sm"

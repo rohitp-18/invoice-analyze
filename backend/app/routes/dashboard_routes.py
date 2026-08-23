@@ -77,14 +77,28 @@ def get_dashboard_stats(
     # ------------------------------------------------------------------------
     recent_invoices = []
     for inv in all_scoped_invoices[:8]:
+        conf_val = float(inv.overall_confidence) if inv.overall_confidence is not None else 0.95
         recent_invoices.append({
             "id": str(inv.id),
             "invoice_number": inv.invoice_number,
             "vendor_name": inv.vendor_name,
             "invoice_date": str(inv.invoice_date) if inv.invoice_date else None,
+            "subtotal": float(inv.subtotal) if inv.subtotal is not None else float(inv.total_amount or 0.0),
+            "tax_amount": float(inv.tax_amount) if inv.tax_amount is not None else 0.0,
             "total_amount": float(inv.total_amount or 0.0),
             "currency": inv.currency,
             "status": inv.status,
+            "ai_status": inv.ai_status or inv.status,
+            "human_status": inv.human_status or ("APPROVED" if inv.status == "APPROVED" else ("REJECTED" if inv.status == "REJECTED" else "PENDING")),
+            "decision_notes": inv.decision_notes,
+            "decision_by_name": inv.decision_by_name or (inv.approver.name if inv.approver else None),
+            "decision_by_role": inv.decision_by_role or (inv.approver.role if inv.approver else None),
+            "decision_at": inv.decision_at.isoformat() if inv.decision_at else None,
+            "overall_confidence": conf_val,
+            "overall_confidance": conf_val,
+            "risk_level": inv.risk_level or "LOW",
+            "risk_score": float(inv.risk_score) if inv.risk_score is not None else 0.05,
+            "recommended_action": inv.recommended_action,
             "submitter_name": inv.submitter.name if inv.submitter else "Unknown",
             "submitter_department": inv.submitter.department if inv.submitter else "General",
             "approver_name": inv.approver.name if inv.approver else None,

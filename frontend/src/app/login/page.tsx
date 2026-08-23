@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -21,12 +21,17 @@ import { GalleryVerticalEnd, Loader2, AlertCircle } from "lucide-react";
 import axios from "@/store/axios";
 import { useRouter } from "next/navigation";
 import { isAxiosError } from "axios";
+import { useDispatch, useSelector } from "react-redux";
+import { AppDispatch, RootState } from "@/store/store";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+
+  const dispatch = useDispatch<AppDispatch>();
+  const { user, isAuthenticated, loading: userLoading } = useSelector((state: RootState) => state.auth)
 
   const router = useRouter();
 
@@ -66,6 +71,14 @@ export default function LoginPage() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!userLoading && isAuthenticated) {
+      router.push("/dashboard");
+    }
+  }, [isAuthenticated, userLoading, router]);
+
+  if (userLoading || isAuthenticated) return null;
 
   return (
     <main className="flex min-h-svh flex-col bg-slate-950 text-white">

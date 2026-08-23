@@ -61,8 +61,10 @@ interface LineItem {
 
 interface Anomaly {
   id?: string;
+  anomaly_flag?: string;
   anomaly_type: string;
   severity: string;
+  reason?: string;
   explanation: string;
   evidence?: string;
 }
@@ -72,10 +74,23 @@ interface Invoice {
   invoice_number: string;
   vendor_name: string;
   invoice_date: string;
+  subtotal?: number;
+  tax_amount?: number;
   total_amount: number;
   currency: string;
   status: string;
+  ai_status?: string;
+  human_status?: string;
+  decision_notes?: string;
+  decision_by_name?: string;
+  decision_by_role?: string;
+  decision_at?: string;
   document_url: string;
+  overall_confidence?: number;
+  overall_confidance?: number;
+  risk_level?: string;
+  risk_score?: number;
+  recommended_action?: string;
   submitter_id?: string;
   submitter_name?: string;
   submitter_email?: string;
@@ -118,8 +133,22 @@ const AVAILABLE_COLUMNS: ExportColumn[] = [
     getter: (inv) => (inv.invoice_date ? String(inv.invoice_date) : "N/A"),
   },
   {
+    key: "subtotal",
+    label: "Pre-Tax Subtotal",
+    category: "Financial",
+    defaultSelected: true,
+    getter: (inv) => (inv.subtotal !== undefined ? Number(inv.subtotal).toFixed(2) : Number(inv.total_amount || 0).toFixed(2)),
+  },
+  {
+    key: "tax_amount",
+    label: "Tax Paid Amount",
+    category: "Financial",
+    defaultSelected: true,
+    getter: (inv) => (inv.tax_amount !== undefined ? Number(inv.tax_amount).toFixed(2) : "0.00"),
+  },
+  {
     key: "total_amount",
-    label: "Total Amount ($)",
+    label: "Total Amount",
     category: "Financial",
     defaultSelected: true,
     getter: (inv) => Number(inv.total_amount || 0).toFixed(2),
@@ -133,10 +162,80 @@ const AVAILABLE_COLUMNS: ExportColumn[] = [
   },
   {
     key: "status",
-    label: "Ledger Status",
+    label: "Overall Status",
     category: "Audit",
     defaultSelected: true,
     getter: (inv) => inv.status || "PENDING_REVIEW",
+  },
+  {
+    key: "ai_status",
+    label: "AI Assessment Status",
+    category: "Audit",
+    defaultSelected: true,
+    getter: (inv) => inv.ai_status || inv.status || "PENDING_REVIEW",
+  },
+  {
+    key: "human_status",
+    label: "Human Review Status",
+    category: "Audit",
+    defaultSelected: true,
+    getter: (inv) =>
+      inv.human_status ||
+      (inv.status === "APPROVED"
+        ? "APPROVED"
+        : inv.status === "REJECTED"
+        ? "REJECTED"
+        : "PENDING"),
+  },
+  {
+    key: "decision_notes",
+    label: "Auditor Decision Notes",
+    category: "Audit",
+    defaultSelected: true,
+    getter: (inv) => inv.decision_notes || "N/A",
+  },
+  {
+    key: "decision_by_name",
+    label: "Auditor / Reviewer",
+    category: "Audit",
+    defaultSelected: true,
+    getter: (inv) => inv.decision_by_name || inv.approver_name || "Unassigned",
+  },
+  {
+    key: "decision_at",
+    label: "Audit Decision Timestamp",
+    category: "Audit",
+    defaultSelected: false,
+    getter: (inv) =>
+      inv.decision_at ? new Date(inv.decision_at).toLocaleString() : "N/A",
+  },
+  {
+    key: "overall_confidence",
+    label: "AI Confidence (%)",
+    category: "Audit",
+    defaultSelected: true,
+    getter: (inv) => `${Math.round(((inv.overall_confidence ?? inv.overall_confidance) ?? 0.95) * 100)}%`,
+  },
+  {
+    key: "risk_level",
+    label: "Risk Level",
+    category: "Audit",
+    defaultSelected: true,
+    getter: (inv) => (inv.risk_level || "LOW").toUpperCase(),
+  },
+  {
+    key: "risk_score",
+    label: "Risk Score",
+    category: "Audit",
+    defaultSelected: true,
+    getter: (inv) => (inv.risk_score !== undefined ? Number(inv.risk_score).toFixed(2) : "0.05"),
+  },
+  {
+    key: "recommended_action",
+    label: "Recommended Action",
+    category: "Audit",
+    defaultSelected: true,
+    getter: (inv) => inv.recommended_action || "Standard Verification",
   },
   {
     key: "submitter_name",
@@ -205,7 +304,7 @@ const AVAILABLE_COLUMNS: ExportColumn[] = [
     defaultSelected: false,
     getter: (inv) =>
       inv.anomalies && inv.anomalies.length > 0
-        ? inv.anomalies.map((a) => `[${a.severity}] ${a.anomaly_type}: ${a.explanation}`).join("; ")
+        ? inv.anomalies.map((a) => `[${a.severity}] ${a.anomaly_flag || a.anomaly_type}: ${a.reason || a.explanation}`).join("; ")
         : "Clean Audit",
   },
   {

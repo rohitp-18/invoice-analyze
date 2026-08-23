@@ -49,11 +49,32 @@ class Invoice(Base):
     invoice_number: Mapped[str] = mapped_column(String(100), nullable=False)
     vendor_name: Mapped[str] = mapped_column(String(255), nullable=False)
     invoice_date: Mapped[date] = mapped_column(Date, nullable=False)
+    subtotal: Mapped[Optional[float]] = mapped_column(Numeric(12, 2), default=0.0, server_default="0.0", nullable=True)
+    tax_amount: Mapped[Optional[float]] = mapped_column(Numeric(12, 2), default=0.0, server_default="0.0", nullable=True)
     total_amount: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
-    currency: Mapped[str] = mapped_column(String(10), default="USD", server_default="USD")
+    currency: Mapped[str] = mapped_column(String(10), default="INR", server_default="INR")
     status: Mapped[str] = mapped_column(String(50), default="PENDING_REVIEW", server_default="PENDING_REVIEW")
+    ai_status: Mapped[Optional[str]] = mapped_column(String(50), default="PENDING_REVIEW", server_default="PENDING_REVIEW", nullable=True)
+    human_status: Mapped[Optional[str]] = mapped_column(String(50), default="PENDING", server_default="PENDING", nullable=True)
+    decision_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    decision_by_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    decision_by_role: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    decision_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     document_url: Mapped[str] = mapped_column(Text, nullable=False)
+    overall_confidence: Mapped[Optional[float]] = mapped_column(Numeric(5, 2), default=0.95, server_default="0.95", nullable=True)
+    risk_level: Mapped[Optional[str]] = mapped_column(String(50), default="LOW", server_default="LOW", nullable=True)
+    risk_score: Mapped[Optional[float]] = mapped_column(Numeric(5, 2), default=0.05, server_default="0.05", nullable=True)
+    recommended_action: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now(), server_default=func.now())
+
+    @property
+    def overall_confidance(self) -> Optional[float]:
+        """Support alternative spelling."""
+        return self.overall_confidence
+
+    @overall_confidance.setter
+    def overall_confidance(self, value: Optional[float]):
+        self.overall_confidence = value
 
     # Relationships
     submitter: Mapped[Optional["User"]] = relationship(
@@ -92,8 +113,10 @@ class AnomalyFinding(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     invoice_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("invoices.id", ondelete="CASCADE"))
-    anomaly_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    anomaly_flag: Mapped[Optional[str]] = mapped_column(String(150), nullable=True)
+    anomaly_type: Mapped[str] = mapped_column(String(150), nullable=False)
     severity: Mapped[str] = mapped_column(String(20), nullable=False)
+    reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     explanation: Mapped[str] = mapped_column(Text, nullable=False)
     evidence: Mapped[Optional[str]] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now(), server_default=func.now())

@@ -83,11 +83,15 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       url: "/dashboard",
     },
     {
-      title: "Invoices & Ledger",
+      title: "Spend Analysis",
+      url: "/dashboard/analysis"
+    },
+    {
+      title: "Invoices",
       url: "/dashboard/invoices",
       items: [
         {
-          title: "All Invoices (Ledger)",
+          title: "All Invoices",
           url: "/dashboard/invoices",
           allowedRoles: ["MANAGER", "AUDITOR", "COMPLIANCE", "FINANCE", "ADMIN"],
           allowedDepartments: ["FINANCE", "COMPLIANCE", "ADMIN", "AUDIT"],
@@ -95,6 +99,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         {
           title: "Upload Invoice",
           url: "/invoice/upload",
+        },
+        {
+          title: "My Invoices",
+          url: "/dashboard/invoices/my",
         },
         {
           title: "Export Data (CSV)",
@@ -126,14 +134,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       ],
     },
     {
-      title: "Organization & Teams",
+      title: "Organizations & Departments",
       url: "/dashboard/actions/teams",
       // Accessible to Managers, Admin, and Compliance
       allowedRoles: ["ADMIN", "MANAGER", "COMPLIANCE"],
       allowedDepartments: ["ADMIN", "COMPLIANCE", "FINANCE"],
       items: [
         {
-          title: "Teams & Members",
+          title: "Departments & Members",
           url: "/dashboard/actions/teams",
           allowedRoles: ["ADMIN", "MANAGER", "COMPLIANCE"],
           allowedDepartments: ["ADMIN", "COMPLIANCE", "FINANCE"],
@@ -150,7 +158,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         },
         {
           title: "My Invoices",
-          url: "/invoice/details",
+          url: "/dashboard/invoices/my",
         },
         {
           title: "Logout",

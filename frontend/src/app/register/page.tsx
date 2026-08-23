@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -30,6 +30,9 @@ import { GalleryVerticalEnd, Loader2, AlertCircle, CheckCircle2 } from "lucide-r
 import axios from "@/store/axios";
 import { useRouter } from "next/navigation";
 import { isAxiosError } from "axios";
+import { useDispatch, useSelector } from "react-redux";
+import { AppDispatch, RootState } from "@/store/store";
+import { setAuthState } from "@/store/authSlice";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -41,6 +44,9 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
+
+  const dispatch = useDispatch<AppDispatch>();
+  const { user, isAuthenticated, loading: userLoading } = useSelector((state: RootState) => state.auth);
 
   const submitHandler = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -71,17 +77,23 @@ export default function RegisterPage() {
 
       // 2. Automatically authenticate the newly registered user
       try {
-        const loginRes = await axios.post("/auth/login", {
+        const { data } = await axios.post("/auth/login", {
           email: email.trim().toLowerCase(),
           password: password,
         });
 
-        if (loginRes.data?.access_token) {
-          localStorage.setItem("token", loginRes.data.access_token);
-          if (loginRes.data.role) {
-            localStorage.setItem("role", loginRes.data.role);
+        if (!data) {
+          setErrorMessage("No response from Login");
+          return;
+        }
+
+        if (data?.access_token) {
+          localStorage.setItem("token", data.access_token);
+          if (data.role) {
+            localStorage.setItem("role", data.role);
           }
           setSuccessMessage("Account created successfully! Redirecting to dashboard...");
+          dispatch(setAuthState({ user: data.user, isAuthenticated: true, loading: false, role: data.user.role, token: data.access_token }));
           setTimeout(() => {
             router.push("/dashboard");
           }, 800);
@@ -93,8 +105,8 @@ export default function RegisterPage() {
 
       setSuccessMessage("Registration successful! Redirecting to login...");
       setTimeout(() => {
-        router.push("/login");
-      }, 1000);
+        router.push("/login")
+      }, 500)
     } catch (error: unknown) {
       console.error("Error during registration:", error);
       if (isAxiosError(error)) {
@@ -108,6 +120,14 @@ export default function RegisterPage() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!userLoading && isAuthenticated) {
+      router.push("/dashboard");
+    }
+  }, [isAuthenticated, userLoading, router]);
+
+  if (userLoading || isAuthenticated) return null;
 
   return (
     <main className="flex min-h-svh flex-col bg-slate-950 text-white">

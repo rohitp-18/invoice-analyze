@@ -42,6 +42,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { formatCurrency } from "@/lib/utils";
 import {
   Table,
   TableBody,
@@ -79,8 +80,10 @@ interface LineItem {
 
 interface Anomaly {
   id?: string;
+  anomaly_flag?: string;
   anomaly_type: string;
   severity: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
+  reason?: string;
   explanation: string;
   evidence?: string;
 }
@@ -90,10 +93,23 @@ interface Invoice {
   invoice_number: string;
   vendor_name: string;
   invoice_date: string;
+  subtotal?: number;
+  tax_amount?: number;
   total_amount: number;
   currency: string;
   status: "PROCESSING" | "PENDING_REVIEW" | "APPROVED" | "FLAGGED" | "REJECTED";
+  ai_status?: string;
+  human_status?: string;
+  decision_notes?: string;
+  decision_by_name?: string;
+  decision_by_role?: string;
+  decision_at?: string;
   document_url: string;
+  overall_confidence?: number;
+  overall_confidance?: number;
+  risk_level?: string;
+  risk_score?: number;
+  recommended_action?: string;
   submitter_id?: string;
   submitter_name?: string;
   submitter_email?: string;
@@ -123,13 +139,13 @@ export default function AllInvoicesPage() {
   const [isDecisionOpen, setIsDecisionOpen] = useState<boolean>(false);
   const [actionSubmitting, setActionSubmitting] = useState<boolean>(false);
 
-  // User RBAC permissions
+  // User RBAC permissions: Only Finance, Auditor, and Admin can approve/reject invoices
   const userRole = (role || user?.role || "EMPLOYEE").toUpperCase();
   const userDept = (user?.department || "").toUpperCase();
 
   const canApproveReject =
-    ["ADMIN", "AUDITOR", "FINANCE", "COMPLIANCE", "MANAGER", "SUPERADMIN"].includes(userRole) ||
-    ["FINANCE", "COMPLIANCE", "ADMIN", "AUDIT", "LEGAL"].includes(userDept);
+    ["ADMIN", "AUDITOR", "FINANCE", "SUPERADMIN"].includes(userRole) ||
+    ["FINANCE", "AUDIT", "ADMIN"].includes(userDept);
 
   // Fetch all invoices
   const fetchInvoices = async () => {
@@ -523,31 +539,78 @@ export default function AllInvoicesPage() {
 
                       {/* Total Amount */}
                       <TableCell className="font-mono text-xs font-semibold text-white">
-                        ${Number(inv.total_amount || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}{" "}
-                        <span className="text-[10px] text-slate-400">{inv.currency}</span>
+                        <div>
+                          {formatCurrency(inv.total_amount, inv.currency)}{" "}
+                          <span className="text-[10px] text-slate-400 font-sans">{inv.currency}</span>
+                        </div>
+                        {Boolean(inv.tax_amount && inv.tax_amount > 0) && (
+                          <div className="text-[10px] text-cyan-400 font-sans">
+                            Tax: {formatCurrency(inv.tax_amount || 0, inv.currency)}
+                          </div>
+                        )}
                       </TableCell>
 
                       {/* Status */}
-                      <TableCell>{getStatusBadge(inv.status)}</TableCell>
-
-                      {/* AI Anomalies */}
                       <TableCell>
-                        {inv.anomalies && inv.anomalies.length > 0 ? (
-                          <span className="inline-flex items-center gap-1 rounded-md border border-rose-500/30 bg-rose-500/10 px-2 py-0.5 text-[11px] font-semibold text-rose-300">
-                            <AlertTriangle className="size-3 text-rose-400" />
-                            {inv.anomalies.length} Anomaly Flag{inv.anomalies.length > 1 ? "s" : ""}
+                        <div className="flex flex-col gap-1">
+                          <div>
+                            {getStatusBadge(
+                              inv.human_status ||
+                              (inv.status === "APPROVED"
+                                ? "APPROVED"
+                                : inv.status === "REJECTED"
+                                  ? "REJECTED"
+                                  : "PENDING_REVIEW")
+                            )}
+                          </div>
+                          {inv.decision_notes && (
+                            <div
+                              className="text-[10px] text-slate-400 max-w-[160px] truncate font-sans"
+                              title={`Reviewer Remarks: ${inv.decision_notes}`}
+                            >
+                              Note: {inv.decision_notes}
+                            </div>
+                          )}
+                        </div>
+                      </TableCell>
+
+                      {/* AI Anomalies & Risk */}
+                      <TableCell>
+                        <div className="flex flex-col gap-1">
+                          <div className="flex items-center gap-1.5">
+                            {inv.anomalies && inv.anomalies.length > 0 ? (
+                              <span className="inline-flex items-center gap-1 rounded border border-rose-500/30 bg-rose-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-rose-300">
+                                <AlertTriangle className="size-2.5 text-rose-400" />
+                                {inv.anomalies.length} Flag{inv.anomalies.length > 1 ? "s" : ""}
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 rounded border border-emerald-500/20 bg-emerald-500/5 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-400">
+                                <Check className="size-2.5" /> Clean Audit
+                              </span>
+                            )}
+                            <span
+                              className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${(inv.risk_level || "LOW").toUpperCase() === "CRITICAL"
+                                ? "bg-rose-500/20 text-rose-300 border border-rose-500/30"
+                                : (inv.risk_level || "LOW").toUpperCase() === "HIGH"
+                                  ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
+                                  : (inv.risk_level || "LOW").toUpperCase() === "MEDIUM"
+                                    ? "bg-yellow-500/20 text-yellow-300 border border-yellow-500/30"
+                                    : "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                                }`}
+                            >
+                              {inv.risk_level || "LOW"}
+                            </span>
+                          </div>
+                          <span className="text-[10px] text-slate-400">
+                            Conf: {Math.round(((inv.overall_confidence ?? inv.overall_confidance) ?? 0.95) * 100)}% | Risk: {((inv.risk_score ?? 0.05) * 100)}%
                           </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 rounded-md border border-emerald-500/20 bg-emerald-500/5 px-2 py-0.5 text-[11px] font-semibold text-emerald-400">
-                            <Check className="size-3" /> Clean Audit
-                          </span>
-                        )}
+                        </div>
                       </TableCell>
 
                       {/* Human-in-the-Loop Actions */}
                       <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-1.5">
-                          {canApproveReject && (
+                          {canApproveReject && (inv.human_status !== "APPROVED" && inv.human_status !== "REJECTED") && (
                             <>
                               <Button
                                 size="icon-sm"

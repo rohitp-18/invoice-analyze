@@ -357,7 +357,7 @@ export default function ProfilePage() {
                   </Button>
                 </Link>
 
-                <Link href="/invoice/details" className="block">
+                <Link href="/dashboard/invoices/my" className="block">
                   <Button
                     variant="outline"
                     className="w-full justify-between border-white/10 bg-slate-950/60 hover:bg-slate-800 text-slate-200 text-xs h-9"

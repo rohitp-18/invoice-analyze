@@ -111,7 +111,7 @@ export default function TeamsOverviewPage() {
               <BreadcrumbSeparator className="text-slate-600" />
               <BreadcrumbItem>
                 <BreadcrumbPage className="font-semibold text-cyan-300">
-                  Teams & Departments
+                  Departments
                 </BreadcrumbPage>
               </BreadcrumbItem>
             </BreadcrumbList>
@@ -144,17 +144,17 @@ export default function TeamsOverviewPage() {
                 Organization Directory
               </div>
               <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-white">
-                Teams & Departments
+                Departments
               </h1>
               <p className="mt-1.5 text-sm text-slate-400 max-w-xl">
-                Browse teams, monitor member distributions, and manage departmental permissions and invoice approval workflows.
+                Browse department, monitor member distributions, and manage departmental permissions and invoice approval workflows.
               </p>
             </div>
 
             <div className="flex items-center gap-4 bg-slate-950/70 border border-white/10 rounded-xl p-4 self-start md:self-auto">
               <div className="text-center pr-4 border-r border-white/10">
                 <div className="text-2xl font-bold text-white">{teams.length}</div>
-                <div className="text-xs text-slate-400">Total Teams</div>
+                <div className="text-xs text-slate-400">Total Department</div>
               </div>
               <div className="text-center pl-1">
                 <div className="text-2xl font-bold text-cyan-400">{totalMembers}</div>
@@ -177,7 +177,7 @@ export default function TeamsOverviewPage() {
             />
           </div>
           <div className="text-xs text-slate-400">
-            Showing {filteredTeams.length} of {teams.length} teams
+            Showing {filteredTeams.length} of {teams.length} departments
           </div>
         </div>
 
@@ -197,7 +197,7 @@ export default function TeamsOverviewPage() {
         {!loading && errorMessage && (
           <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-6 text-center">
             <AlertCircle className="size-8 text-red-400 mx-auto mb-3" />
-            <h3 className="text-lg font-semibold text-red-200">Unable to load teams</h3>
+            <h3 className="text-lg font-semibold text-red-200">Unable to load departments</h3>
             <p className="mt-1 text-sm text-red-300/80 max-w-md mx-auto">{errorMessage}</p>
             <Button
               variant="outline"
@@ -216,9 +216,9 @@ export default function TeamsOverviewPage() {
             {filteredTeams.length === 0 ? (
               <div className="rounded-xl border border-white/10 bg-slate-900/70 p-12 text-center">
                 <Users className="size-10 text-slate-600 mx-auto mb-3" />
-                <p className="text-slate-300 font-medium">No teams found</p>
+                <p className="text-slate-300 font-medium">No department found</p>
                 <p className="text-xs text-slate-500 mt-1">
-                  {searchQuery ? "No teams matched your search." : "No teams have been created yet."}
+                  {searchQuery ? "No department matched your search." : "No department have been created yet."}
                 </p>
                 {searchQuery && (
                   <Button
@@ -268,7 +268,7 @@ export default function TeamsOverviewPage() {
                           size="sm"
                           className="h-8 gap-1.5 bg-slate-950 border border-white/10 hover:bg-cyan-500 hover:text-slate-950 text-slate-200 text-xs transition-colors"
                         >
-                          View Team
+                          View Department
                           <ArrowRight className="size-3.5 group-hover:translate-x-0.5 transition-transform" />
                         </Button>
                       </Link>

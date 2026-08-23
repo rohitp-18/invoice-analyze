@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from langgraph.graph import StateGraph, START, END
 from app.ai.graph.state import InvoiceState
 from app.ai.graph.nodes import (
@@ -37,6 +37,34 @@ def build_invoice_validation_graph():
 
 # Compiled LangGraph Workflow Singleton
 invoice_validation_graph = build_invoice_validation_graph()
+
+
+def process_single_invoice_workflow(
+    extracted_data: Dict[str, Any],
+    document_bytes: Optional[bytes] = None,
+    file_name: str = "invoice",
+    mime_type: str = "application/pdf",
+    user_id: Optional[str] = None,
+) -> InvoiceState:
+    """
+    Runs an individual extracted invoice through all LangGraph pipeline steps:
+    Vector context retrieval, deterministic rule checking, AI anomaly detection, and decision routing.
+    """
+    initial_state: InvoiceState = {
+        "extracted_data": extracted_data,
+        "raw_text": extracted_data.get("raw_text", ""),
+        "document_bytes": document_bytes,
+        "file_name": file_name,
+        "mime_type": mime_type,
+        "user_id": user_id,
+        "historical_matches": [],
+        "rule_checks": [],
+        "anomalies": [],
+        "errors": [],
+    }
+
+    final_state = invoice_validation_graph.invoke(initial_state)
+    return final_state
 
 
 def process_invoice_workflow(
