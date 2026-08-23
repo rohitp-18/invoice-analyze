@@ -1,0 +1,38 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+
+# Virtual Environments
+.venv/
+venv/
+ENV/
+env/
+
+# IDE & Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Git
+.git/
+.gitignore
+
+# Local Environment Variables & Secrets
+.env
+.env.local
+
+# Local Data & Testing uploads (mounted via volumes at runtime)
+uploads/*
+!uploads/.gitkeep
+data/*
+!data/.gitkeep
+
+# Temporary & Log files
+*.log
+.pytest_cache/
+.coverage
+htmlcov/
