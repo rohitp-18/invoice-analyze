@@ -31,9 +31,7 @@ app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 origins = [
     "http://localhost:3000",      # React/Next.js local dev server
     "http://127.0.0.1:3000",
-] if settings.ENVIRONMENT.lower() == "development" else [
-    o.strip() for o in settings.ALLOWED_ORIGINS.split(",") if o.strip()
-]
+] if settings.ENVIRONMENT.lower() == "development" else settings.ALLOWED_ORIGINS
 
 app.add_middleware(
     CORSMiddleware,
