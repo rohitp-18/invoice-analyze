@@ -1,5 +1,4 @@
-FROM python:3.11-slim
-
+FROM python:3.13-slim
 # Copy Astral uv package manager binary (ultra-fast package installer)
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
 
