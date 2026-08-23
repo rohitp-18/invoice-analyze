@@ -1,7 +1,12 @@
+"use client"
+
 import Link from "next/link";
 import Navbar from "@/components/navbar";
+import { useSelector } from "react-redux";
+import { RootState } from "@/store/store";
 
 export default function Home() {
+  const { user, isAuthenticated } = useSelector((state: RootState) => state.auth);
   return (
     <main className="flex min-h-screen flex-col bg-slate-950 text-white">
       <Navbar />
@@ -18,18 +23,29 @@ export default function Home() {
             seconds.
           </p>
           <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
-            <Link
-              href="/register"
-              className="rounded-lg bg-cyan-400 px-5 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300"
-            >
-              Get Started
-            </Link>
-            <Link
-              href="/login"
-              className="rounded-lg border border-white/25 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-white/10"
-            >
-              Login
-            </Link>
+            {isAuthenticated || user ? (
+              <Link
+                href="/dashboard"
+                className="rounded-lg bg-cyan-400 px-6 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300 shadow-lg shadow-cyan-500/20"
+              >
+                Go to Dashboard
+              </Link>
+            ) : (
+              <>
+                <Link
+                  href="/register"
+                  className="rounded-lg bg-cyan-400 px-5 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300"
+                >
+                  Get Started
+                </Link>
+                <Link
+                  href="/login"
+                  className="rounded-lg border border-white/25 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-white/10"
+                >
+                  Login
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </section>

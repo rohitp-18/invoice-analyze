@@ -23,6 +23,7 @@ import { useRouter } from "next/navigation";
 import { isAxiosError } from "axios";
 import { useDispatch, useSelector } from "react-redux";
 import { AppDispatch, RootState } from "@/store/store";
+import { setAuthState } from "@/store/authSlice";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -56,6 +57,7 @@ export default function LoginPage() {
         if (data.role) {
           localStorage.setItem("role", data.role);
         }
+        dispatch(setAuthState({ user: data.user, isAuthenticated: true, loading: false, role: data.user.role, token: data.access_token }));
         router.push("/dashboard");
       }
     } catch (error: unknown) {
@@ -81,8 +83,6 @@ export default function LoginPage() {
   if (userLoading) return null;
 
   if (isAuthenticated) return null;
-
-
   return (
     <main className="flex min-h-svh flex-col bg-slate-950 text-white">
       <section className="flex flex-1 items-center justify-center bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.22),_transparent_42%),radial-gradient(circle_at_80%_20%,_rgba(251,146,60,0.22),_transparent_36%)] px-4 py-24">
