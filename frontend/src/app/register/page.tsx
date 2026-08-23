@@ -127,7 +127,9 @@ export default function RegisterPage() {
     }
   }, [isAuthenticated, userLoading, router]);
 
-  if (userLoading || isAuthenticated) return null;
+  if (userLoading) return null;
+
+  if (isAuthenticated) return null;
 
   return (
     <main className="flex min-h-svh flex-col bg-slate-950 text-white">

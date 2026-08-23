@@ -85,7 +85,7 @@ class Settings(BaseSettings):
     OCR_ENGINE: Literal["gemini_vision", "ollama_vision", "text_extractor"] = "gemini_vision"
     MAX_DOCUMENT_PAGES: int = 10
 
-    ALLOWED_ORIGINS: str = "http://localhost:3000,http://localhost:8000,http://[IP_ADDRESS],http://[IP_ADDRESS],https://[IP_ADDRESS]"
+    ALLOWED_ORIGINS: list[str] = []
 
     @property
     def gemini_key(self) -> Optional[str]:
