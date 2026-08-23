@@ -10,6 +10,9 @@ from app.routes.spend_analysis_routes import router as spend_analysis_router
 from app.database import engine, run_column_migrations
 from app.models import Base
 from fastapi.middleware.cors import CORSMiddleware
+from app.config import get_settings
+
+settings = get_settings()
 
 # Initialize all database tables on application launch and execute column migrations
 Base.metadata.create_all(bind=engine)
@@ -28,6 +31,8 @@ app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 origins = [
     "http://localhost:3000",      # React/Next.js local dev server
     "http://127.0.0.1:3000",
+] if settings.ENVIRONMENT.lower() == "development" else [
+    o.strip() for o in settings.ALLOWED_ORIGINS.split(",") if o.strip()
 ]
 
 app.add_middleware(
