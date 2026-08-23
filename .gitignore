@@ -1,39 +1,64 @@
+# Node & Next.js
 node_modules/
 .next/
 out/
+.turbo/
 
-# Environment files
+# Environment files & secrets
 .env
 .env.*
+.env.local
 !.env.example
 
-# Python cache and tooling
+# Python cache & build artifacts
 __pycache__/
 *.py[cod]
+*$py.class
+*.pyo
+*.pyd
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
 .coverage
 htmlcov/
-
-# Virtual environments
-.venv/
-venv/
-env/
-
-# Build artifacts
 dist/
 build/
 *.egg-info/
 
+# Python Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Invoice PDF & Image Uploads (Keeps directory structure with .gitkeep)
+uploads/*
+!uploads/.gitkeep
+backend/uploads/*
+!backend/uploads/.gitkeep
+frontend/uploads/*
+!frontend/uploads/.gitkeep
+**/uploads/*
+!**/uploads/.gitkeep
+
+# FAISS / Local Vector Data
+data/*
+!data/.gitkeep
+backend/data/*
+!backend/data/.gitkeep
+**/data/*
+!**/data/.gitkeep
+
 # Logs
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
-# IDE and OS files
+# IDE & OS specific files
 .vscode/
 .idea/
+*.swp
+*.swo
 .DS_Store
 Thumbs.db
-
-# faiss 
-data/
