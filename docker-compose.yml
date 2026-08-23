@@ -1,6 +1,40 @@
 version: "3.9"
 
 services:
+  # ============================================================================
+  # 1. PostgreSQL Database Service (Ultra-lightweight Alpine image ~40MB)
+  # ============================================================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: invoice_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-invoices}
+    # Low-spec memory optimization flags (reduces RAM usage significantly)
+    command: >
+      postgres
+      -c shared_buffers=64MB
+      -c work_mem=4MB
+      -c maintenance_work_mem=16MB
+      -c max_connections=30
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-invoices}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - invoice_net
+
+  # ============================================================================
+  # 2. FastAPI Backend & LangGraph AI Service
+  # ============================================================================
   backend:
     build:
       context: ./backend
@@ -28,11 +62,9 @@ services:
       # Persistent storage for invoice PDF/image uploads and local FAISS indexes
       - ./backend/uploads:/app/uploads
       - ./backend/data:/app/data
-    # Explicit command to run database table creation & column migrations before launching Uvicorn
-    command: >
-      sh -c "alembic upgrade head 2>/dev/null || true &&
-             python -c 'from app.database import engine, run_column_migrations; from app.models import Base; Base.metadata.create_all(bind=engine); run_column_migrations(); print(\"[OK] [Docker Startup] Database tables & column migrations verified successfully.\")' &&
-             uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1"
+    depends_on:
+      postgres:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/"]
       interval: 30s
@@ -41,6 +73,13 @@ services:
       start_period: 15s
     networks:
       - invoice_net
+
+# ==============================================================================
+# Persistent Named Volumes & Network Definitions
+# ==============================================================================
+volumes:
+  postgres_data:
+    driver: local
 
 networks:
   invoice_net:
