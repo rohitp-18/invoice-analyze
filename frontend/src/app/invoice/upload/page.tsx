@@ -87,6 +87,14 @@ export default function UploadInvoicePage() {
       return;
     }
 
+    const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB limit
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      setErrorMessage(`File size is ${(file.size / (1024 * 1024)).toFixed(1)}MB. Maximum allowed file size is 10MB.`);
+      setInvoiceFile(null);
+      setFilePreview(null);
+      return;
+    }
+
     setErrorMessage("");
     setInvoiceFile(file);
 
@@ -267,16 +275,20 @@ export default function UploadInvoicePage() {
                   Click to browse or drag & drop invoice
                 </p>
                 <p className="mt-1 text-xs text-slate-400">
-                  Supports PDF documents, PNG, JPG, JPEG, and WEBP images
+                  Supports PDF documents, PNG, JPG, JPEG, and WEBP images (Max 10MB)
                 </p>
 
-                <div className="mt-4 flex items-center gap-3 text-[11px] text-slate-500">
+                <div className="mt-4 flex flex-wrap items-center justify-center gap-3 text-[11px] text-slate-500">
                   <span className="inline-flex items-center gap-1">
                     <FileText className="size-3" /> PDF Documents
                   </span>
                   <span>•</span>
                   <span className="inline-flex items-center gap-1">
                     <FileImage className="size-3" /> Image Receipts
+                  </span>
+                  <span>•</span>
+                  <span className="inline-flex items-center gap-1 text-cyan-400 font-medium">
+                    Max 10MB
                   </span>
                   <span>•</span>
                   <span className="inline-flex items-center gap-1">

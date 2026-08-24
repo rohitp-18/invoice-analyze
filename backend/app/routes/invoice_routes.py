@@ -228,6 +228,13 @@ async def _handle_invoice_upload(
             detail="The uploaded file is empty.",
         )
 
+    MAX_FILE_SIZE = 10 * 1024 * 1024  # Strict 10MB limit
+    if len(file_bytes) > MAX_FILE_SIZE:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"File size exceeds the 10MB limit ({len(file_bytes) / (1024 * 1024):.1f}MB uploaded). Please upload a file under 10MB.",
+        )
+
     # 3. Save physical file to disk for persistence
     unique_prefix = uuid.uuid4().hex[:8]
     stored_filename = f"{unique_prefix}_{file.filename or 'invoice.pdf'}"
