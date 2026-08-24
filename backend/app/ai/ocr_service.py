@@ -121,88 +121,20 @@ class ExtractedInvoiceData(BaseModel):
     notes: Optional[str] = None
 
 
-from typing import Tuple
-
-
-def create_dual_ocr_views(image_bytes: bytes) -> Tuple[bytes, bytes]:
-    """
-    Creates two complementary visual representations for Gemini Vision:
-    - View 1 (Color Enhanced): Preserves logos, colored badges, and stamps.
-    - View 2 (High-Contrast Monochrome): De-noises, sharpens character strokes, and eliminates shadows.
-    """
-    try:
-        img = Image.open(io.BytesIO(image_bytes))
-        img = ImageOps.exif_transpose(img) or img
-        if img.mode not in ("RGB", "L"):
-            img = img.convert("RGB")
-
-        w, h = img.size
-        min_dim = min(w, h)
-        if min_dim < 1300:
-            scale_factor = max(1.6, 1600.0 / max(1, min_dim))
-            new_w = int(w * scale_factor)
-            new_h = int(h * scale_factor)
-            img = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
-
-        # -------------------------------------------------------------
-        # View 1: Color Enhanced & Sharpened
-        # -------------------------------------------------------------
-        color_img = img.filter(ImageFilter.UnsharpMask(radius=2, percent=180, threshold=2))
-        color_img = ImageEnhance.Contrast(color_img).enhance(1.4)
-        color_img = ImageEnhance.Sharpness(color_img).enhance(1.6)
-        color_img = ImageOps.autocontrast(color_img, cutoff=1)
-        
-        c_io = io.BytesIO()
-        color_img.save(c_io, format="JPEG", quality=95, optimize=True)
-        color_bytes = c_io.getvalue()
-
-        # -------------------------------------------------------------
-        # View 2: High-Contrast Monochromatic Edge View (For blurry text)
-        # -------------------------------------------------------------
-        gray_img = ImageOps.grayscale(img)
-        gray_img = ImageOps.autocontrast(gray_img, cutoff=2)
-        gray_img = gray_img.filter(ImageFilter.UnsharpMask(radius=3, percent=220, threshold=1))
-        gray_img = ImageEnhance.Contrast(gray_img).enhance(1.8)
-        gray_img = ImageEnhance.Sharpness(gray_img).enhance(2.0)
-        
-        g_io = io.BytesIO()
-        gray_img.save(g_io, format="JPEG", quality=95, optimize=True)
-        mono_bytes = g_io.getvalue()
-
-        return color_bytes, mono_bytes
-    except Exception as e:
-        print(f"  [OCRService] Dual-view creation fallback: {e}")
-        return image_bytes, image_bytes
-
-
 class OCRService:
     """
     OCR & Document Parsing Service using Multimodal LLMs (Gemini / Ollama Vision).
     Extracts one or multiple distinct invoices from a single uploaded document.
-    Supports Dual-View visual fusion and automatic Pro model escalation for blurry images.
     """
 
     def __init__(self):
         self._vision_llm = None
-        self._pro_vision_llm = None
 
     @property
     def vision_llm(self):
         if self._vision_llm is None:
             self._vision_llm = get_vision_llm(temperature=0.0)
         return self._vision_llm
-
-    @property
-    def pro_vision_llm(self):
-        """High-reasoning Pro model fallback for blurry or degraded receipts."""
-        if self._pro_vision_llm is None:
-            try:
-                # Try gemini-2.5-pro or gemini-1.5-pro
-                pro_model = os.getenv("GEMINI_PRO_MODEL", "gemini-2.5-pro")
-                self._pro_vision_llm = get_vision_llm(model=pro_model, temperature=0.0)
-            except Exception:
-                self._pro_vision_llm = self.vision_llm
-        return self._pro_vision_llm
 
     def _parse_multi_json_fallback(self, raw_text: str) -> List[ExtractedInvoiceData]:
         """
@@ -265,31 +197,28 @@ class OCRService:
         mime_type: str = "image/png",
     ) -> List[ExtractedInvoiceData]:
         """
-        Extracts ALL invoices from an image file using Dual-View visual fusion (Color + High-Contrast Monochrome)
-        and automatic Gemini Pro escalation for blurry receipts.
+        Extracts ALL invoices from an image file (supporting 1, 2, 3+ invoices in one image).
         """
-        print(f"  [OCRService] Processing invoice image ({len(image_bytes)} bytes) with Dual-View fusion...")
-        
-        color_bytes, mono_bytes = create_dual_ocr_views(image_bytes)
-        
-        color_b64 = base64.b64encode(color_bytes).decode("utf-8")
-        mono_b64 = base64.b64encode(mono_bytes).decode("utf-8")
+        print(f"  [OCRService] Processing invoice image ({len(image_bytes)} bytes)...")
+        base64_data = base64.b64encode(image_bytes).decode("utf-8")
+        image_url = f"data:{mime_type};base64,{base64_data}"
 
         prompt = (
-            "You are an expert forensic financial OCR vision system.\n"
-            "You are provided with TWO complementary views of the same document:\n"
-            "- View 1: Color Enhanced View (use for logos, colored headers, and stamps)\n"
-            "- View 2: High-Contrast Monochromatic Edge View (use for reading blurry, faded, or low-contrast text and numbers)\n\n"
-            "DEGRADED / BLURRY RECEIPT EXTRACTION INSTRUCTIONS:\n"
-            "1. Cross-reference both views to transcribe obscured letters, dates, and numbers.\n"
-            "2. Use mathematical consistency (e.g. quantity * unit_price = line_total; subtotal + tax = total_amount) to verify blurry numbers.\n"
-            "3. If an invoice number or date is slightly blurry, use surrounding context, headers, and address lines rather than returning 'UNKNOWN'.\n"
-            "4. DEFAULT CURRENCY: If no currency symbol or code is present, default to 'INR' (Indian Rupees).\n"
-            "5. Extract verbatim 'invoice_number' and 'vendor_name' for each invoice.\n"
-            "6. Format 'invoice_date' strictly as 'YYYY-MM-DD'.\n"
-            "7. Extract numeric floats for 'total_amount', 'subtotal', and 'tax_amount'.\n"
-            "8. Itemize all 'line_items' (description, quantity, unit_price, total_amount, category).\n\n"
-            "Output MUST be valid JSON adhering strictly to this schema:\n"
+            "You are a strict financial OCR data extraction engine.\n"
+            "Examine this image carefully. Note that this single image may contain ONE single invoice/receipt, "
+            "or MULTIPLE (2 to 3 or more) distinct invoices/receipts uploaded together.\n\n"
+            "CRITICAL INSTRUCTIONS:\n"
+            "1. IDENTIFY ALL INVOICES: If the image contains multiple distinct invoices, receipts, or bills, "
+            "you MUST extract EACH one as a separate object in the 'invoices' array.\n"
+            "2. CURRENCY HANDLING:\n"
+            "   - Extract the currency code: 'INR', 'USD', 'EUR', 'GBP', etc.\n"
+            "   - If symbols are found: '₹' or 'Rs' -> 'INR', '$' -> 'USD', '€' -> 'EUR', '£' -> 'GBP'.\n"
+            "   - IF NO CURRENCY SYMBOL OR CODE IS PRESENT (e.g. only plain numbers), YOU MUST DEFAULT TO 'INR' (Indian Rupees).\n"
+            "3. Extract verbatim 'invoice_number' and 'vendor_name' for each invoice.\n"
+            "4. Format 'invoice_date' strictly as 'YYYY-MM-DD' (e.g. '2026-08-20').\n"
+            "5. Extract numeric floats for 'total_amount', 'subtotal', and 'tax_amount' without currency symbols.\n"
+            "6. Itemize every single line item into the 'line_items' array (description, quantity, unit_price, total_amount, category).\n\n"
+            "Output MUST be valid JSON adhering to this schema:\n"
             "{\n"
             '  "invoices": [\n'
             "    {\n"
@@ -315,39 +244,16 @@ class OCRService:
                 {"type": "text", "text": prompt},
                 {
                     "type": "image_url",
-                    "image_url": {"url": f"data:image/jpeg;base64,{color_b64}"},
-                },
-                {
-                    "type": "image_url",
-                    "image_url": {"url": f"data:image/jpeg;base64,{mono_b64}"},
+                    "image_url": {"url": image_url},
                 },
             ]
         )
 
         try:
-            print("  [OCRService] Invoking Vision LLM with Dual-View fusion at temperature=0.0...")
+            print("  [OCRService] Invoking Vision LLM for multi-invoice extraction at temperature=0.0...")
             response = self.vision_llm.invoke([message])
             content = response.content if hasattr(response, "content") else str(response)
             invoices = self._parse_multi_json_fallback(content)
-
-            # Smart Fallback: If Flash failed on blurry image, escalate to Gemini Pro
-            needs_fallback = any(
-                inv.invoice_number in ["INV-EMPTY", "INV-PARSE-ERR", "UNKNOWN"]
-                or (inv.total_amount == 0.0 and len(inv.line_items) == 0)
-                for inv in invoices
-            )
-            if needs_fallback:
-                print("  [OCRService] ⚠️ Flash OCR yielded low confidence on blurry image. Escalating to Gemini Pro vision reasoning...")
-                try:
-                    pro_response = self.pro_vision_llm.invoke([message])
-                    pro_content = pro_response.content if hasattr(pro_response, "content") else str(pro_response)
-                    pro_invoices = self._parse_multi_json_fallback(pro_content)
-                    if pro_invoices and pro_invoices[0].invoice_number not in ["INV-EMPTY", "INV-PARSE-ERR"]:
-                        invoices = pro_invoices
-                        content = pro_content
-                        print("  [OCRService] ✅ Gemini Pro successfully resolved blurry invoice extraction!")
-                except Exception as pro_err:
-                    print(f"  [OCRService] Gemini Pro fallback notice: {pro_err}")
 
             for idx, inv in enumerate(invoices, 1):
                 inv.raw_text = content
